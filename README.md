@@ -6,7 +6,7 @@
 
 **开始倒计时，专注之外的窗口一律消失。**
 
-*界面设计参考 [网费很贵](https://github.com/sheepzh/time-tracker-4-browser) · 浏览器感知依赖 [ActivityWatch](https://github.com/ActivityWatch/activitywatch)*
+*界面设计参考 [网费很贵](https://github.com/sheepzh/time-tracker-4-browser) · 浏览器感知依赖 [ActivityWatch](https://github.com/ActivityWatch/activitywatch) · 社区 [linux.do](https://linux.do)*
 
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows)](https://github.com/stevenstg/Sprout-Windows)
 [![Electron](https://img.shields.io/badge/Electron-41-47848F?logo=electron)](https://www.electronjs.org/)
