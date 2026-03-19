@@ -1,8 +1,25 @@
-# Sprout 🌱
+<div align="center">
 
-**Windows 专注白名单工具** — 开启一次倒计时，只有你预先放行的窗口才能留在前台。
+<img src="app/icon.svg" width="64" />
 
-界面设计参考了 [网费很贵](https://github.com/sheepzh/time-tracker-4-browser) 的实现形式；浏览器域名感知依赖 [ActivityWatch](https://github.com/ActivityWatch/activitywatch) 的本地数据源。
+# Sprout
+
+**开始倒计时，专注之外的窗口一律消失。**
+
+*界面设计参考 [网费很贵](https://github.com/sheepzh/time-tracker-4-browser) · 浏览器感知依赖 [ActivityWatch](https://github.com/ActivityWatch/activitywatch)*
+
+[![Platform](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows)](https://github.com/stevenstg/Sprout-Windows)
+[![Electron](https://img.shields.io/badge/Electron-41-47848F?logo=electron)](https://www.electronjs.org/)
+[![ActivityWatch](https://img.shields.io/badge/ActivityWatch-optional-orange)](https://activitywatch.net/)
+[![License](https://img.shields.io/badge/license-ISC-green)](LICENSE)
+
+[![Node](https://img.shields.io/badge/Node.js-%E2%89%A518-339933?logo=nodedotjs)](https://nodejs.org/)
+[![active--win](https://img.shields.io/badge/active--win-window%20detection-blue)](https://github.com/sindresorhus/active-win)
+[![node--window--manager](https://img.shields.io/badge/node--window--manager-minimize%20%2F%20restore-blue)](https://github.com/sentialx/node-window-manager)
+
+</div>
+
+---
 
 ---
 
