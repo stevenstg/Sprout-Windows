@@ -46,6 +46,39 @@
       </aside>
 
       <main class="main">
+        <section class="panel compact-header">
+          <div class="compact-header-top">
+            <div class="compact-brand">
+              <p class="eyebrow">Sprout</p>
+              <h1>专注白名单</h1>
+            </div>
+            <div class="compact-header-actions">
+              <button id="compact-open-history-btn" class="compact-action-btn" aria-label="打开历史">📋</button>
+              <button id="compact-open-settings-btn" class="compact-action-btn" aria-label="打开设置">⚙</button>
+            </div>
+          </div>
+          <div class="compact-status-grid">
+            <section class="compact-status-card">
+              <div class="compact-card-head">
+                <span>ActivityWatch</span>
+                <span id="compact-aw-badge" class="badge badge-offline">未连接</span>
+              </div>
+              <p id="compact-aw-text" class="muted small">正在探测本机 AW 服务</p>
+            </section>
+            <section class="compact-status-card compact-rules-card">
+              <div class="compact-card-head">
+                <span>当前规则</span>
+                <span id="compact-rule-summary" class="muted small">尚未配置规则</span>
+              </div>
+              <div class="compact-rule-pills">
+                <div class="compact-pill"><strong id="compact-draft-window-count">0</strong><span>窗口</span></div>
+                <div class="compact-pill"><strong id="compact-draft-domain-count">0</strong><span>域名</span></div>
+                <div class="compact-pill"><strong id="compact-draft-category-count">0</strong><span>分类</span></div>
+              </div>
+            </section>
+          </div>
+        </section>
+
         <div class="topbar panel">
           <div>
             <p class="eyebrow">Sprout</p>
@@ -56,6 +89,11 @@
         <section id="focus-view">
           <!-- Timer Hero -->
           <section class="panel timer-hero">
+            <div class="hero-heading compact-only">
+              <p class="eyebrow">Sprout</p>
+              <h2 id="compact-main-heading">准备专注</h2>
+            </div>
+
             <!-- Idle state -->
             <div id="focus-state-idle" class="focus-state active">
               <div id="hero-idle-timer" class="hero-timer">25:00</div>
@@ -94,6 +132,16 @@
             </div>
           </section>
 
+          <section id="compact-context-card" class="panel compact-context-card">
+            <div class="compact-card-head">
+              <p class="eyebrow">当前上下文</p>
+              <span id="compact-context-kind" class="muted small">—</span>
+            </div>
+            <h3 id="compact-context-title">等待检测</h3>
+            <p id="compact-context-meta" class="muted small">—</p>
+            <p id="compact-context-detail" class="muted small">—</p>
+          </section>
+
           <!-- Compact Rule Summary -->
           <section id="rule-summary-panel" class="panel">
             <div class="panel-head">
@@ -101,7 +149,7 @@
                 <p class="eyebrow">当前规则</p>
                 <p id="rule-summary-text" class="muted small">尚未配置规则</p>
               </div>
-              <button id="edit-rules-btn" class="btn secondary">编辑规则</button>
+              <button id="edit-rules-btn" class="btn primary">编辑规则</button>
             </div>
             <div id="rule-summary-chips" class="chips"></div>
           </section>
@@ -228,7 +276,7 @@
                 <option value="subdomain">包含子域名</option>
                 <option value="exact">精确匹配</option>
               </select>
-              <button id="add-domain-btn" class="btn secondary">添加域名</button>
+              <button id="add-domain-btn" class="btn primary">添加域名</button>
             </div>
             <div id="domains-empty" class="empty">没有域名规则时，只能靠窗口或分类规则放行浏览器。</div>
             <div id="domains-list" class="chips"></div>
@@ -250,7 +298,7 @@
               <input id="category-name-input" type="text" placeholder="分类名，例如 AI" />
               <input id="category-pattern-input" type="text" placeholder="pattern，例如 ChatGPT|Claude|Gemini" />
               <input id="category-color-input" type="color" value="#e2ebd7" />
-              <button id="save-category-btn" class="btn secondary">保存分类</button>
+              <button id="save-category-btn" class="btn primary">保存分类</button>
             </div>
             <div id="category-rule-list" class="rule-list"></div>
           </section>
@@ -336,6 +384,11 @@
                 <input id="system-safelist-enabled-input" type="checkbox" />
                 <span>启用系统安全白名单</span>
               </label>
+              <label class="setting-switch">
+                <input id="close-browser-tab-on-violation-input" type="checkbox" />
+                <span>浏览器违规时先尝试关闭当前标签页</span>
+              </label>
+              <p class="muted small">只对浏览器生效。它会先发出 Ctrl+W，适合关掉摸鱼标签页，但也可能误关带未保存内容的网页。</p>
               <label class="setting-row">
                 <span>退出验证难度</span>
                 <select id="exit-difficulty-input">

@@ -14,6 +14,11 @@ import { WindowsService } from './windows-service.js';
 const MONITOR_INTERVAL_MS = 350;
 const CLOCK_INTERVAL_MS = 250;
 const DUPLICATE_VIOLATION_WINDOW_MS = 1500;
+const DEFAULT_CLOSE_BROWSER_TAB_DELAY_MS = 180;
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export class GuardianRuntime {
   constructor({ send, logger = console }) {
@@ -31,6 +36,8 @@ export class GuardianRuntime {
     this.preferences = {
       autoWriteHistory: true,
       systemSafelistEnabled: true,
+      closeBrowserTabOnViolation: false,
+      closeBrowserTabDelayMs: DEFAULT_CLOSE_BROWSER_TAB_DELAY_MS,
     };
     this.lastViolation = { signature: '', at: 0 };
     this.matchStats = {
@@ -340,10 +347,55 @@ export class GuardianRuntime {
     }
 
     this.lastViolation = { signature, at: now };
-    const minimized = context.windowId ? this.windows.minimizeWindow(context.windowId) : false;
+
+    let minimized = false;
     let restored = false;
-    if (this.state.recentAllowedWindow?.windowId) {
-      restored = this.windows.restoreWindow(this.state.recentAllowedWindow.windowId);
+    let closedBrowserTab = false;
+    let recoveredAfterClosingTab = false;
+
+    if (this.preferences.closeBrowserTabOnViolation && context.isBrowser && context.windowId) {
+      closedBrowserTab = await this.windows.closeActiveBrowserTab(context.windowId);
+      if (closedBrowserTab) {
+        const closeDelay = Number(this.preferences.closeBrowserTabDelayMs) || DEFAULT_CLOSE_BROWSER_TAB_DELAY_MS;
+        await delay(Math.max(80, closeDelay));
+
+        const afterSystemContext = this.windows.captureSystemContext();
+        const afterResult = await this.activityWatch.enrichContext(afterSystemContext);
+        this.state.currentContext = afterResult.context;
+        this.state.guardianStatus = afterResult.guardianStatus;
+
+        const afterDecision = decideContext({
+          context: afterResult.context,
+          allowedWindows: this.state.allowedWindows,
+          allowedDomains: this.state.allowedDomains,
+          allowedCategories: this.state.allowedCategories,
+          systemSafelistEnabled: this.preferences.systemSafelistEnabled !== false,
+        });
+
+        if (afterDecision.allowed) {
+          recoveredAfterClosingTab = true;
+          if (afterDecision.matchedWindow) {
+            this.state.recentAllowedWindow = afterDecision.matchedWindow;
+            this.trackMatch('windowHits', afterDecision.matchedWindow.id);
+          }
+
+          if (afterDecision.matchedCategory) {
+            this.trackMatch('categoryHits', afterDecision.matchedCategory.id);
+          }
+        } else {
+          minimized = afterResult.context?.windowId ? this.windows.minimizeWindow(afterResult.context.windowId) : false;
+          if (this.state.recentAllowedWindow?.windowId) {
+            restored = this.windows.restoreWindow(this.state.recentAllowedWindow.windowId);
+          }
+        }
+      }
+    }
+
+    if (!recoveredAfterClosingTab && !minimized) {
+      minimized = context.windowId ? this.windows.minimizeWindow(context.windowId) : false;
+      if (this.state.recentAllowedWindow?.windowId) {
+        restored = this.windows.restoreWindow(this.state.recentAllowedWindow.windowId);
+      }
     }
 
     const violation = {
@@ -357,6 +409,8 @@ export class GuardianRuntime {
       minimized,
       restoredAllowedWindow: restored,
       domain: context.domain || '',
+      closedBrowserTab,
+      recoveredAfterClosingTab,
       suppressedBySystemSafelist: false,
     };
 

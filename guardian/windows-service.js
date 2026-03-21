@@ -1,4 +1,5 @@
 import activeWindow from 'active-win';
+import { spawn } from 'node:child_process';
 import windowManagerPackage from 'node-window-manager';
 import { createEmptyActiveContext, isProbablyBrowser } from '../shared/models.js';
 
@@ -56,6 +57,37 @@ export class WindowsService {
     } catch {
       return false;
     }
+  }
+
+  async closeActiveBrowserTab(windowId) {
+    const win = this.#findWindow(windowId);
+    if (!win) {
+      return false;
+    }
+
+    try {
+      win.bringToTop();
+    } catch {
+      // ignore
+    }
+
+    const script = `$wshell = New-Object -ComObject WScript.Shell; Start-Sleep -Milliseconds 40; $wshell.SendKeys('^w')`;
+    return new Promise((resolve) => {
+      const child = spawn('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-Command',
+        script,
+      ], {
+        windowsHide: true,
+        stdio: 'ignore',
+      });
+
+      child.on('error', () => resolve(false));
+      child.on('exit', (code) => resolve(code === 0));
+    });
   }
 
   #findWindow(windowId) {

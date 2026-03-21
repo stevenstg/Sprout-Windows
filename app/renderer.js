@@ -24,6 +24,7 @@ const state = {
   historyFiles: [],
   selectedHistoryFile: null,
   historyContent: '',
+  lastCategoryRuleAnchorId: null,
 };
 
 const el = (id) => document.getElementById(id);
@@ -98,6 +99,43 @@ function formatDurationMinutes(minutes) {
   return `${hours} 小时 ${rest} 分钟`;
 }
 
+function summarizeRules() {
+  const parts = [];
+  if (state.allowedWindows.length) parts.push(`${state.allowedWindows.length} 个窗口`);
+  if (state.allowedDomains.length) parts.push(`${state.allowedDomains.length} 条域名`);
+  if (state.allowedCategories.length) parts.push(state.allowedCategories.map((c) => c.name).join(', '));
+  return parts;
+}
+
+function getCompactAwText(current = {}) {
+  if (current.online) {
+    return current.webBucketId ? '标签页识别已启用' : '已连接，仅增强窗口识别';
+  }
+  return '未连接时按整窗口判断浏览器';
+}
+
+function formatContextMeta(current = {}) {
+  const parts = [];
+  if (current.processName) parts.push(current.processName);
+  if (current.isBrowser && current.domain) parts.push(current.domain);
+  if (current.source === 'merged') parts.push('已增强');
+  return parts.join(' · ') || '—';
+}
+
+function formatContextDetail(current = {}) {
+  if (current.isBrowser) {
+    return current.url || current.domain || '—';
+  }
+  return '—';
+}
+
+function formatContextKind(current = {}) {
+  if (current.isBrowser && current.domain) return '浏览器标签页';
+  if (current.isBrowser) return '浏览器窗口';
+  if (current.processName) return '应用窗口';
+  return '未检测到前台窗口';
+}
+
 function showToast(message, tone = 'normal') {
   const toast = el('toast');
   toast.textContent = message;
@@ -108,13 +146,35 @@ function showToast(message, tone = 'normal') {
   showToast.timer = setTimeout(() => toast.classList.remove('show'), 2600);
 }
 
+function scrollCategoryEditorIntoView() {
+  const target = el('category-name-input');
+  if (!target) return;
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setTimeout(() => target.focus(), 180);
+}
+
+function scrollCategoryRuleIntoView(id) {
+  if (!id) return;
+  const row = document.querySelector(`[data-category-rule-id="${id}"]`);
+  if (!row) return;
+  row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function syncDrawerScrollLock() {
+  const anyOpen = ['rules', 'history', 'settings']
+    .some((name) => !el(`${name}-drawer-overlay`)?.classList.contains('hidden'));
+  document.body.classList.toggle('drawer-open', anyOpen);
+}
+
 function openDrawer(name) {
   el(`${name}-drawer-overlay`).classList.remove('hidden');
+  syncDrawerScrollLock();
   if (name === 'rules') renderDrawerActiveSummary();
 }
 
 function closeDrawer(name) {
   el(`${name}-drawer-overlay`).classList.add('hidden');
+  syncDrawerScrollLock();
   if (name === 'rules') {
     renderCompactRuleSummary();
     renderDraftSummary();
@@ -184,20 +244,20 @@ function renderFocusView() {
   const status = state.session?.status || 'idle';
   const headings = { idle: '准备专注', running: '专注中...', completed: '专注完成', cancelled: '专注结束' };
   el('main-heading').textContent = headings[status] || '准备专注';
+  el('compact-main-heading').textContent = headings[status] || '准备专注';
   el('live-context-panel').classList.toggle('hidden', status !== 'running');
   el('violations-panel').classList.toggle('hidden', status === 'idle');
   el('edit-rules-btn').classList.toggle('hidden', status === 'running');
+  el('compact-context-card').classList.toggle('hidden', status === 'running');
   renderCompactRuleSummary();
 }
 
 function renderCompactRuleSummary() {
-  const parts = [];
-  if (state.allowedWindows.length) parts.push(`${state.allowedWindows.length} 个窗口`);
-  if (state.allowedDomains.length) parts.push(`${state.allowedDomains.length} 条域名`);
-  if (state.allowedCategories.length) parts.push(state.allowedCategories.map((c) => c.name).join(', '));
-
+  const parts = summarizeRules();
   const hasRules = !!(state.allowedWindows.length || state.allowedDomains.length || state.allowedCategories.length);
-  el('rule-summary-text').textContent = hasRules ? parts.join(' · ') : '尚未配置规则';
+  const summaryText = hasRules ? parts.join(' · ') : '尚未配置规则';
+  el('rule-summary-text').textContent = summaryText;
+  el('compact-rule-summary').textContent = summaryText;
 
   const chips = el('rule-summary-chips');
   chips.innerHTML = '';
@@ -222,18 +282,25 @@ function renderDraftSummary() {
   el('draft-domain-count').textContent = String(state.allowedDomains.length);
   el('draft-category-count').textContent = String(state.allowedCategories.length);
   el('draft-system-safelist').textContent = state.settings?.systemSafelistEnabled === false ? '关' : '开';
+  el('compact-draft-window-count').textContent = String(state.allowedWindows.length);
+  el('compact-draft-domain-count').textContent = String(state.allowedDomains.length);
+  el('compact-draft-category-count').textContent = String(state.allowedCategories.length);
 }
 
 function renderAwStatus(status) {
   state.guardianStatus = status || state.guardianStatus;
   const current = state.guardianStatus || {};
   const badge = el('aw-badge');
+  const compactBadge = el('compact-aw-badge');
   badge.textContent = current.online ? '已连接' : '未连接';
   badge.className = `badge ${current.online ? 'badge-online' : 'badge-offline'}`;
+  compactBadge.textContent = badge.textContent;
+  compactBadge.className = badge.className;
   el('aw-note').textContent = current.note || 'ActivityWatch 未连接';
   el('aw-debug').textContent = current.online
     ? `window: ${current.windowBucketId || '—'} · web: ${current.webBucketId || '—'}`
     : `mode: ${current.mode || 'windows-only'} · checked: ${current.checkedAt || '—'}`;
+  el('compact-aw-text').textContent = getCompactAwText(current);
   el('aw-status-json').textContent = JSON.stringify(current, null, 2);
 }
 
@@ -241,13 +308,19 @@ function renderContext(context) {
   state.currentContext = context || state.currentContext;
   const current = state.currentContext || {};
   const title = current.title || '等待检测';
-  const meta = current.processName || '—';
+  const meta = formatContextMeta(current);
+  const detail = formatContextDetail(current);
+  const kind = formatContextKind(current);
   el('context-title').textContent = title;
   el('context-meta').textContent = meta;
-  el('context-detail').textContent = '';
+  el('context-detail').textContent = detail;
   el('live-context-title').textContent = title;
   el('live-context-meta').textContent = meta;
-  el('live-context-detail').textContent = '';
+  el('live-context-detail').textContent = detail;
+  el('compact-context-title').textContent = title;
+  el('compact-context-meta').textContent = meta;
+  el('compact-context-detail').textContent = detail;
+  el('compact-context-kind').textContent = kind;
   el('context-json').textContent = JSON.stringify(current, null, 2);
 }
 
@@ -312,15 +385,16 @@ function renderCategoryRules() {
     const selected = state.allowedCategories.some((item) => item.id === rule.id);
     const row = document.createElement('div');
     row.className = 'rule-row';
+    row.dataset.categoryRuleId = rule.id;
     row.innerHTML = `
       <div class="rule-main">
         <div><span class="color-dot" style="background:${rule.color}"></span><strong>${rule.name}</strong></div>
         <p class="muted small">Rule: ${rule.pattern || '—'}</p>
       </div>
       <div class="rule-actions">
-        <button class="btn ${selected ? 'ghost' : 'secondary'}" data-action="toggle">${selected ? '移出本轮' : '加入本轮'}</button>
-        <button class="btn ghost" data-action="edit">编辑</button>
-        <button class="btn ghost" data-action="delete">删除</button>
+        <button class="btn small ${selected ? 'ghost' : 'primary'}" data-action="toggle">${selected ? '移出' : '加入'}</button>
+        <button class="btn small ghost" data-action="edit">编辑</button>
+        <button class="btn small ghost" data-action="delete">删除</button>
       </div>
     `;
     row.querySelector('[data-action="toggle"]').addEventListener('click', () => toggleCategorySelection(rule.id));
@@ -328,6 +402,10 @@ function renderCategoryRules() {
     row.querySelector('[data-action="delete"]').addEventListener('click', () => removeCategoryRule(rule.id));
     list.appendChild(row);
   });
+  if (state.lastCategoryRuleAnchorId) {
+    requestAnimationFrame(() => scrollCategoryRuleIntoView(state.lastCategoryRuleAnchorId));
+    state.lastCategoryRuleAnchorId = null;
+  }
 }
 
 function renderSystemSafelist(rules = []) {
@@ -424,13 +502,17 @@ function renderSummaryLists(summary) {
   const categories = el('result-categories');
   windows.innerHTML = '';
   domains.innerHTML = '';
-  categories.innerHTML = '';
+  if (categories) {
+    categories.innerHTML = '';
+  }
   (summary.allowedWindows || []).forEach((item) => windows.appendChild(makeChip(item.label || item.initialTitle || item.processName || '未命名窗口')));
   (summary.allowedDomains || []).forEach((item) => domains.appendChild(makeChip(`${item.domain} · ${item.matchMode === 'exact' ? '精确' : '子域'}`)));
-  (summary.allowedCategories || []).forEach((item) => categories.appendChild(makeChip(item.name, { category: true, color: item.color })));
+  if (categories) {
+    (summary.allowedCategories || []).forEach((item) => categories.appendChild(makeChip(item.name, { category: true, color: item.color })));
+  }
   if (!(summary.allowedWindows || []).length) windows.innerHTML = '<div class="empty">没有窗口规则</div>';
   if (!(summary.allowedDomains || []).length) domains.innerHTML = '<div class="empty">没有域名规则</div>';
-  if (!(summary.allowedCategories || []).length) categories.innerHTML = '<div class="empty">没有分类规则</div>';
+  if (categories && !(summary.allowedCategories || []).length) categories.innerHTML = '<div class="empty">没有分类规则</div>';
 }
 
 function renderSession(session) {
@@ -453,6 +535,7 @@ function fillCategoryEditor(rule) {
   el('category-pattern-input').value = rule.pattern || '';
   el('category-color-input').value = rule.color || '#a78bfa';
   el('save-category-btn').dataset.editingId = rule.id;
+  scrollCategoryEditorIntoView();
   showToast(`正在编辑分类：${rule.name}`);
 }
 
@@ -476,16 +559,19 @@ function upsertCategoryRule() {
   if (editingId) {
     state.categoryRules = state.categoryRules.map((rule) => rule.id === editingId ? { ...rule, name, pattern, color } : rule);
     state.allowedCategories = state.allowedCategories.map((rule) => rule.id === editingId ? { ...rule, name, pattern, color } : rule);
+    state.lastCategoryRuleAnchorId = editingId;
     showToast(`已更新分类：${name}`);
   } else {
+    const createdId = `category-${Date.now()}`;
     state.categoryRules = [...state.categoryRules, {
-      id: `category-${Date.now()}`,
+      id: createdId,
       name,
       pattern,
       color,
       enabled: true,
       createdAt: new Date().toISOString(),
     }];
+    state.lastCategoryRuleAnchorId = createdId;
     showToast(`已新增分类：${name}`);
   }
 
@@ -534,6 +620,7 @@ async function loadSettings() {
   el('history-dir-input').value = state.settings.historyDir || '';
   el('auto-write-history-input').checked = state.settings.autoWriteHistory !== false;
   el('system-safelist-enabled-input').checked = state.settings.systemSafelistEnabled !== false;
+  el('close-browser-tab-on-violation-input').checked = state.settings.closeBrowserTabOnViolation === true;
   el('exit-difficulty-input').value = state.settings.exitDifficulty || 'easy';
   state.exitDifficulty = state.settings.exitDifficulty || 'easy';
   renderSystemSafelist(state.settings.systemSafelistRules || []);
@@ -545,6 +632,7 @@ async function saveSettings() {
     historyDir: el('history-dir-input').value.trim() || state.settings?.historyDir || '',
     autoWriteHistory: el('auto-write-history-input').checked,
     systemSafelistEnabled: el('system-safelist-enabled-input').checked,
+    closeBrowserTabOnViolation: el('close-browser-tab-on-violation-input').checked,
     exitDifficulty: el('exit-difficulty-input').value,
   };
   state.settings = await api.saveSettings(patch);
@@ -822,8 +910,13 @@ function bindEvents() {
     openDrawer('history');
     refreshHistoryFiles();
   });
+  el('compact-open-history-btn').addEventListener('click', () => {
+    openDrawer('history');
+    refreshHistoryFiles();
+  });
   el('close-history-drawer').addEventListener('click', () => closeDrawer('history'));
   el('open-settings-btn').addEventListener('click', () => openDrawer('settings'));
+  el('compact-open-settings-btn').addEventListener('click', () => openDrawer('settings'));
   el('close-settings-drawer').addEventListener('click', () => closeDrawer('settings'));
 
   // Close drawer on backdrop click

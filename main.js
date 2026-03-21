@@ -21,7 +21,19 @@ class SettingsStore {
       historyDir: path.join(app.getPath('documents'), 'Sprout', 'history'),
       autoWriteHistory: true,
       systemSafelistEnabled: true,
+      closeBrowserTabOnViolation: false,
+      closeBrowserTabDelayMs: 180,
       systemSafelistRules: getDefaultSystemSafelistRules(),
+    };
+  }
+
+  normalizeSettings(input = {}) {
+    const defaults = this.getDefaults();
+    return {
+      ...defaults,
+      ...input,
+      historyDir: String(input?.historyDir || '').trim() || defaults.historyDir,
+      systemSafelistRules: defaults.systemSafelistRules,
     };
   }
 
@@ -30,20 +42,19 @@ class SettingsStore {
       return this.settings;
     }
 
-    const defaults = this.getDefaults();
     try {
       const raw = await fs.readFile(this.file, 'utf8');
       const stored = JSON.parse(raw);
-      this.settings = {
-        ...defaults,
-        ...stored,
-        systemSafelistRules: defaults.systemSafelistRules,
-      };
+      this.settings = this.normalizeSettings(stored);
+      if (this.settings.historyDir !== stored?.historyDir) {
+        await fs.mkdir(path.dirname(this.file), { recursive: true });
+        await fs.writeFile(this.file, JSON.stringify(this.settings, null, 2), 'utf8');
+      }
     } catch (error) {
       if (error.code !== 'ENOENT') {
         console.error('读取设置失败', error);
       }
-      this.settings = defaults;
+      this.settings = this.normalizeSettings();
       await this.save(this.settings);
     }
 
@@ -53,11 +64,10 @@ class SettingsStore {
 
   async save(patch = {}) {
     const current = await this.load();
-    this.settings = {
+    this.settings = this.normalizeSettings({
       ...current,
       ...patch,
-      systemSafelistRules: current.systemSafelistRules,
-    };
+    });
     await fs.mkdir(path.dirname(this.file), { recursive: true });
     await fs.writeFile(this.file, JSON.stringify(this.settings, null, 2), 'utf8');
     await fs.mkdir(this.settings.historyDir, { recursive: true });
@@ -305,14 +315,16 @@ app.whenReady().then(async () => {
   settingsStore = new SettingsStore(userDataDir);
   appSettings = await settingsStore.load();
   const logDir = path.join(userDataDir, 'logs');
-  await guardian.start({
-    logDir,
-    historyDir: appSettings.historyDir,
-    preferences: {
-      autoWriteHistory: appSettings.autoWriteHistory,
-      systemSafelistEnabled: appSettings.systemSafelistEnabled,
-    },
-  }, (kind, payload) => {
+    await guardian.start({
+      logDir,
+      historyDir: appSettings.historyDir,
+      preferences: {
+        autoWriteHistory: appSettings.autoWriteHistory,
+        systemSafelistEnabled: appSettings.systemSafelistEnabled,
+        closeBrowserTabOnViolation: appSettings.closeBrowserTabOnViolation,
+        closeBrowserTabDelayMs: appSettings.closeBrowserTabDelayMs,
+      },
+    }, (kind, payload) => {
     if (kind === 'state') {
       broadcast(IPC_CHANNELS.push.state, payload);
     } else if (kind === 'violation') {
@@ -330,6 +342,8 @@ app.whenReady().then(async () => {
       preferences: {
         autoWriteHistory: appSettings.autoWriteHistory,
         systemSafelistEnabled: appSettings.systemSafelistEnabled,
+        closeBrowserTabOnViolation: appSettings.closeBrowserTabOnViolation,
+        closeBrowserTabDelayMs: appSettings.closeBrowserTabDelayMs,
       },
       historyDir: appSettings.historyDir,
     });
