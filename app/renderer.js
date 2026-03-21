@@ -66,6 +66,16 @@ function persistLastRules() {
   }));
 }
 
+function reconcileAllowedCategories() {
+  const library = new Map(state.categoryRules.map((rule) => [rule.id, rule]));
+  state.allowedCategories = state.allowedCategories
+    .map((item) => {
+      const source = library.get(item.id);
+      return source ? clone(source) : null;
+    })
+    .filter(Boolean);
+}
+
 function normalizeDomain(input) {
   if (!input) return '';
   const raw = String(input).trim();
@@ -373,6 +383,7 @@ function renderAllowedLists() {
     onRemove: () => toggleCategorySelection(item.id),
   })));
 
+  persistLastRules();
   renderDraftSummary();
   renderCompactRuleSummary();
   renderDrawerActiveSummary();
@@ -576,6 +587,7 @@ function upsertCategoryRule() {
   }
 
   persistCategoryRules();
+  reconcileAllowedCategories();
   resetCategoryEditor();
   renderCategoryRules();
   renderAllowedLists();
@@ -608,6 +620,7 @@ function restoreDefaultCategories() {
   state.categoryRules = clone(DEFAULT_CATEGORY_RULES);
   const validIds = new Set(state.categoryRules.map((item) => item.id));
   state.allowedCategories = state.allowedCategories.filter((item) => validIds.has(item.id));
+  reconcileAllowedCategories();
   persistCategoryRules();
   resetCategoryEditor();
   renderCategoryRules();
@@ -705,6 +718,7 @@ async function refreshInitialState() {
     state.allowedWindows = lastRules.allowedWindows || [];
     state.allowedDomains = lastRules.allowedDomains || [];
     state.allowedCategories = lastRules.allowedCategories || [];
+    reconcileAllowedCategories();
   }
 
   try {
