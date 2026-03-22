@@ -11,18 +11,9 @@
       <aside class="sidebar">
         <div>
           <p class="eyebrow">Sprout</p>
-          <h1>专注白名单</h1>
-          <p class="muted">按窗口、域名、分类和系统安全白名单共同守住当前这轮专注。</p>
+          <h1>生长空间</h1>
+          <p class="muted">杂草出现，即刻清除。</p>
         </div>
-
-        <section class="status-card">
-          <div class="status-row">
-            <span>ActivityWatch</span>
-            <span id="aw-badge" class="badge badge-offline">未连接</span>
-          </div>
-          <p id="aw-note" class="muted small">正在探测本机 AW 服务</p>
-          <p id="aw-debug" class="muted small">bucket: —</p>
-        </section>
 
         <section class="status-card">
           <p class="small label">当前前台上下文</p>
@@ -34,14 +25,13 @@
         <section class="status-card compact-list">
           <p class="small label">当前规则</p>
           <div class="status-pair"><span>窗口</span><strong id="draft-window-count">0</strong></div>
-          <div class="status-pair"><span>域名</span><strong id="draft-domain-count">0</strong></div>
           <div class="status-pair"><span>分类</span><strong id="draft-category-count">0</strong></div>
           <div class="status-pair"><span>系统保护</span><strong id="draft-system-safelist">开</strong></div>
         </section>
 
         <div class="sidebar-actions">
-          <button id="open-history-btn" class="sidebar-action-btn">📋 历史</button>
-          <button id="open-settings-btn" class="sidebar-action-btn">⚙ 设置</button>
+          <button id="open-history-btn" class="sidebar-action-btn">历史</button>
+          <button id="open-settings-btn" class="sidebar-action-btn">设置</button>
         </div>
       </aside>
 
@@ -50,7 +40,7 @@
           <div class="compact-header-top">
             <div class="compact-brand">
               <p class="eyebrow">Sprout</p>
-              <h1>专注白名单</h1>
+              <h1>生长空间</h1>
             </div>
             <div class="compact-header-actions">
               <button id="compact-open-history-btn" class="compact-action-btn" aria-label="打开历史">📋</button>
@@ -58,13 +48,6 @@
             </div>
           </div>
           <div class="compact-status-grid">
-            <section class="compact-status-card">
-              <div class="compact-card-head">
-                <span>ActivityWatch</span>
-                <span id="compact-aw-badge" class="badge badge-offline">未连接</span>
-              </div>
-              <p id="compact-aw-text" class="muted small">正在探测本机 AW 服务</p>
-            </section>
             <section class="compact-status-card compact-rules-card">
               <div class="compact-card-head">
                 <span>当前规则</span>
@@ -72,7 +55,6 @@
               </div>
               <div class="compact-rule-pills">
                 <div class="compact-pill"><strong id="compact-draft-window-count">0</strong><span>窗口</span></div>
-                <div class="compact-pill"><strong id="compact-draft-domain-count">0</strong><span>域名</span></div>
                 <div class="compact-pill"><strong id="compact-draft-category-count">0</strong><span>分类</span></div>
               </div>
             </section>
@@ -87,14 +69,12 @@
         </div>
 
         <section id="focus-view">
-          <!-- Timer Hero -->
           <section class="panel timer-hero">
             <div class="hero-heading compact-only">
               <p class="eyebrow">Sprout</p>
               <h2 id="compact-main-heading">准备专注</h2>
             </div>
 
-            <!-- Idle state -->
             <div id="focus-state-idle" class="focus-state active">
               <div id="hero-idle-timer" class="hero-timer">25:00</div>
               <div class="duration-picker">
@@ -108,18 +88,17 @@
               <button id="start-session-btn" class="btn primary large">开始专注</button>
             </div>
 
-            <!-- Running state -->
             <div id="focus-state-running" class="focus-state">
               <h2 id="running-timer">25:00</h2>
               <p id="running-subtitle" class="muted">正在守住你这轮允许规则</p>
               <div class="metrics">
                 <div class="metric"><span class="metric-label">违规次数</span><strong id="metric-violations">0</strong></div>
-                <div class="metric"><span class="metric-label">AW 模式</span><strong id="metric-aw-mode">windows-only</strong></div>
+                <div class="metric"><span class="metric-label">允许窗口</span><strong id="metric-allowed-windows">0</strong></div>
+                <div class="metric"><span class="metric-label">允许分类</span><strong id="metric-allowed-categories">0</strong></div>
               </div>
               <button id="exit-challenge-btn" class="btn danger large">结束专注</button>
             </div>
 
-            <!-- Result state -->
             <div id="focus-state-result" class="focus-state">
               <h3 id="result-title">本轮已结束</h3>
               <p id="result-subtitle" class="muted">—</p>
@@ -142,7 +121,6 @@
             <p id="compact-context-detail" class="muted small">—</p>
           </section>
 
-          <!-- Compact Rule Summary -->
           <section id="rule-summary-panel" class="panel">
             <div class="panel-head">
               <div>
@@ -154,7 +132,6 @@
             <div id="rule-summary-chips" class="chips"></div>
           </section>
 
-          <!-- Live context (visible only while running) -->
           <div id="live-context-panel" class="grid two hidden">
             <section class="panel">
               <p class="eyebrow">当前上下文</p>
@@ -179,19 +156,17 @@
             </section>
           </div>
 
-          <!-- Result summary grid (visible only after session ends) -->
           <div id="result-summary-grid" class="grid result-grid hidden">
             <section class="panel">
               <p class="eyebrow">本次允许窗口</p>
               <div id="result-windows" class="chips"></div>
             </section>
             <section class="panel">
-              <p class="eyebrow">本次允许域名</p>
-              <div id="result-domains" class="chips"></div>
+              <p class="eyebrow">本次允许分类</p>
+              <div id="result-categories" class="chips"></div>
             </section>
           </div>
 
-          <!-- Violations panel (visible during running and result) -->
           <section id="violations-panel" class="panel hidden">
             <div class="panel-head">
               <div>
@@ -208,7 +183,6 @@
 
     <div id="toast" class="toast"></div>
 
-    <!-- Exit challenge overlay -->
     <div id="exit-challenge-overlay" class="challenge-overlay hidden">
       <div class="challenge-card">
         <p class="small label muted">确认结束专注</p>
@@ -225,7 +199,6 @@
       </div>
     </div>
 
-    <!-- Rules Drawer -->
     <div id="rules-drawer-overlay" class="drawer-overlay hidden">
       <div class="drawer" id="rules-drawer">
         <div class="drawer-header">
@@ -233,20 +206,16 @@
           <button id="close-rules-drawer" class="btn ghost">完成</button>
         </div>
 
-        <!-- Active rules summary (always visible at top) -->
         <section class="panel drawer-active-summary">
           <p class="eyebrow">本轮已选规则</p>
           <div id="drawer-active-summary" class="drawer-summary-scroll"></div>
         </section>
 
-        <!-- Tab bar -->
         <div class="drawer-tabs">
           <button class="drawer-tab active" data-tab="windows">允许窗口</button>
-          <button class="drawer-tab" data-tab="domains">允许域名</button>
           <button class="drawer-tab" data-tab="categories">分类规则</button>
         </div>
 
-        <!-- Tab: 允许窗口 -->
         <div class="drawer-tab-panel" id="drawer-tab-windows">
           <section class="panel">
             <div class="panel-head">
@@ -261,39 +230,16 @@
           </section>
         </div>
 
-        <!-- Tab: 允许域名 -->
-        <div class="drawer-tab-panel hidden" id="drawer-tab-domains">
-          <section class="panel">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">允许域名</p>
-                <h3>浏览器标签页按域名放行</h3>
-              </div>
-            </div>
-            <div class="domain-form">
-              <input id="domain-input" type="text" placeholder="例如 chat.openai.com 或 https://docs.github.com" />
-              <select id="domain-mode">
-                <option value="subdomain">包含子域名</option>
-                <option value="exact">精确匹配</option>
-              </select>
-              <button id="add-domain-btn" class="btn primary">添加域名</button>
-            </div>
-            <div id="domains-empty" class="empty">没有域名规则时，只能靠窗口或分类规则放行浏览器。</div>
-            <div id="domains-list" class="chips"></div>
-          </section>
-        </div>
-
-        <!-- Tab: 分类规则 -->
         <div class="drawer-tab-panel hidden" id="drawer-tab-categories">
           <section class="panel">
             <div class="panel-head">
               <div>
                 <p class="eyebrow">分类规则</p>
-                <h3>命中标题、进程、路径、域名或 URL 就允许</h3>
+                <h3>命中标题、进程或路径就允许</h3>
               </div>
               <button id="restore-default-categories-btn" class="btn ghost">恢复默认分类</button>
             </div>
-            <p class="muted small">pattern 支持正则；不想写正则就直接用 | 隔开关键词。</p>
+            <p class="muted small">pattern 支持正则；不想写正则就直接用 | 隔开关键词。默认会带一个 Browser 分类，方便整类放行浏览器窗口。</p>
             <div class="category-form">
               <input id="category-name-input" type="text" placeholder="分类名，例如 AI" />
               <input id="category-pattern-input" type="text" placeholder="pattern，例如 ChatGPT|Claude|Gemini" />
@@ -322,32 +268,29 @@
       </div>
     </div>
 
-    <!-- History Drawer -->
     <div id="history-drawer-overlay" class="drawer-overlay hidden">
       <div class="drawer drawer-wide">
-        <div class="drawer-header">
-          <h3>历史记录</h3>
-          <div class="footer-actions">
-            <button id="refresh-history-btn" class="btn ghost">刷新历史</button>
-            <button id="open-history-dir-btn" class="btn secondary">打开历史目录</button>
-            <button id="close-history-drawer" class="btn ghost">关闭</button>
+        <div class="drawer-header history-header">
+          <div>
+            <h3>历史记录</h3>
+            <p class="muted small">看最近几天的专注结果，直接点日期就能预览。</p>
+          </div>
+          <div class="footer-actions history-toolbar">
+            <button id="refresh-history-btn" class="btn small ghost">刷新历史</button>
+            <button id="open-history-dir-btn" class="btn small primary">打开历史目录</button>
+            <button id="close-history-drawer" class="btn small ghost">关闭</button>
           </div>
         </div>
 
         <div class="history-layout">
-          <section class="panel">
+          <section class="panel history-files-panel">
             <p class="eyebrow">日期文件</p>
+            <p class="muted small">只显示最近三天</p>
             <div id="history-files-empty" class="empty">还没有历史记录文件。</div>
             <div id="history-files-list" class="history-file-list"></div>
           </section>
 
-          <section class="panel">
-            <p class="eyebrow">会话索引</p>
-            <div id="history-headings-empty" class="empty">先选择一个历史文件。</div>
-            <div id="history-headings-list" class="timeline compact"></div>
-          </section>
-
-          <section class="panel wide">
+          <section class="panel history-preview-panel">
             <div class="panel-head">
               <div>
                 <p class="eyebrow">Markdown 预览</p>
@@ -360,16 +303,20 @@
       </div>
     </div>
 
-    <!-- Settings Drawer -->
     <div id="settings-drawer-overlay" class="drawer-overlay hidden">
       <div class="drawer drawer-medium">
-        <div class="drawer-header">
-          <h3>设置</h3>
-          <button id="close-settings-drawer" class="btn ghost">关闭</button>
+        <div class="drawer-header settings-header">
+          <div>
+            <h3>设置</h3>
+          </div>
+          <div class="footer-actions settings-toolbar">
+            <button id="refresh-context-btn" class="btn small ghost">刷新上下文</button>
+            <button id="close-settings-drawer" class="btn small ghost">关闭</button>
+          </div>
         </div>
 
-        <div class="grid two settings-grid">
-          <section class="panel">
+        <div class="settings-layout">
+          <section class="panel settings-main-panel">
             <p class="eyebrow">基础设置</p>
             <div class="settings-form">
               <label class="setting-row">
@@ -384,11 +331,6 @@
                 <input id="system-safelist-enabled-input" type="checkbox" />
                 <span>启用系统安全白名单</span>
               </label>
-              <label class="setting-switch">
-                <input id="close-browser-tab-on-violation-input" type="checkbox" />
-                <span>浏览器违规时先尝试关闭当前标签页</span>
-              </label>
-              <p class="muted small">只对浏览器生效。它会先发出 Ctrl+W，适合关掉摸鱼标签页，但也可能误关带未保存内容的网页。</p>
               <label class="setting-row">
                 <span>退出验证难度</span>
                 <select id="exit-difficulty-input">
@@ -397,24 +339,20 @@
                   <option value="hard">困难（生僻汉字）</option>
                 </select>
               </label>
-              <div class="footer-actions">
+              <div class="footer-actions settings-actions">
                 <button id="save-settings-btn" class="btn primary">保存设置</button>
-                <button id="refresh-aw-settings-btn" class="btn ghost">刷新 AW 诊断</button>
-                <button id="refresh-context-btn" class="btn ghost">刷新上下文</button>
               </div>
             </div>
           </section>
 
-          <section class="panel">
-            <p class="eyebrow">AW 诊断</p>
-            <pre id="aw-status-json" class="json-box">{}</pre>
-            <div class="divider"></div>
+          <section class="panel settings-preview-panel">
             <p class="eyebrow">当前上下文原始对象</p>
+            <p class="muted small">这里显示实时抓到的前台窗口原始数据，用来排查规则命中问题。</p>
             <pre id="context-json" class="json-box">{}</pre>
           </section>
         </div>
 
-        <section class="panel">
+        <section class="panel settings-safelist-panel">
           <div class="panel-head">
             <div>
               <p class="eyebrow">系统安全白名单</p>

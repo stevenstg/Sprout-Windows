@@ -1,55 +1,3 @@
-const KNOWN_BROWSERS = [
-  'chrome',
-  'msedge',
-  'edge',
-  'brave',
-  'firefox',
-  'vivaldi',
-  'opera',
-  'arc',
-];
-
-export function normalizeDomain(input) {
-  if (!input) {
-    return '';
-  }
-
-  const value = String(input).trim();
-  if (!value) {
-    return '';
-  }
-
-  try {
-    const withProtocol = /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(value) ? value : `https://${value}`;
-    return new URL(withProtocol).hostname.toLowerCase();
-  } catch {
-    return value
-      .replace(/^https?:\/\//i, '')
-      .split('/')[0]
-      .split('?')[0]
-      .trim()
-      .toLowerCase();
-  }
-}
-
-export function isProbablyBrowser(nameOrPath = '') {
-  const lower = String(nameOrPath).toLowerCase();
-  return KNOWN_BROWSERS.some((browser) => lower.includes(browser));
-}
-
-export function createGuardianStatus(overrides = {}) {
-  return {
-    online: false,
-    baseUrl: 'http://127.0.0.1:5600/api/0',
-    windowBucketId: null,
-    webBucketId: null,
-    mode: 'windows-only',
-    note: 'ActivityWatch 未连接',
-    checkedAt: new Date().toISOString(),
-    ...overrides,
-  };
-}
-
 export function createEmptyActiveContext() {
   return {
     timestamp: new Date().toISOString(),
@@ -59,10 +7,6 @@ export function createEmptyActiveContext() {
     processId: null,
     processName: '',
     processPath: '',
-    isBrowser: false,
-    browserName: '',
-    url: '',
-    domain: '',
     confidence: 0,
   };
 }
@@ -77,12 +21,10 @@ export function createInitialSessionState() {
     violationCount: 0,
     violations: [],
     allowedWindows: [],
-    allowedDomains: [],
     allowedCategories: [],
     systemSafelistEnabled: true,
     recentAllowedWindow: null,
     currentContext: createEmptyActiveContext(),
-    guardianStatus: createGuardianStatus(),
     exitProtection: {
       type: 'hold',
       holdToExitMs: 3000,
@@ -173,14 +115,13 @@ export function createCategoryRule({
 
 export function getDefaultCategoryRules() {
   return [
-    createCategoryRule({ id: 'cat-programming', name: 'Programming', color: '#4ade80', pattern: 'GitHub|Stack Overflow|Bitbucket|GitLab|vim|Spyder|kate|Ghidra|Scite|Code|Visual Studio|PyCharm|WebStorm|Terminal|PowerShell' }),
-    createCategoryRule({ id: 'cat-ai', name: 'AI', color: '#a78bfa', pattern: 'ChatGPT|Google AI Studio|Claude|Gemini|Copilot|OpenAI|Anthropic|WindowsTerminal|Windows PowerShell|PowerShell' }),
-    createCategoryRule({ id: 'cat-notes', name: 'Notes', color: '#f472b6', pattern: 'Open Notebook|Obsidian|Typora|Notion|OneNote|adobe' }),
-    createCategoryRule({ id: 'cat-paper', name: 'Paper', color: '#38bdf8', pattern: 'zotero|pdf|论文|paper|Reader|Acrobat' }),
-    createCategoryRule({ id: 'cat-office', name: 'Office', color: '#fb923c', pattern: 'powerpoint|word|excel|powerpnt|Acrobat|WPS' }),
-    createCategoryRule({ id: 'cat-media', name: 'Media', color: '#f43f5e', pattern: 'Photoshop|GIMP|Inkscape|Premiere|剪映|Image|画图' }),
-    createCategoryRule({ id: 'cat-comms', name: 'Comms', color: '#67e8f9', pattern: '微信|WeChat|QQ|Slack|Teams|Discord|Telegram|飞书' }),
-    createCategoryRule({ id: 'cat-fun', name: '摸鱼', color: '#84cc16', pattern: 'msedge.exe|Edge|Bilibili|抖音|微博|小红书|youtube|娱乐|wechat' }),
+    createCategoryRule({ id: 'cat-programming', name: 'Programming', color: '#4ade80', pattern: 'Visual Studio Code|PyCharm|WebStorm|vim|Spyder|Ghidra|SciTE|Cursor' }),
+    createCategoryRule({ id: 'cat-ai', name: 'AI', color: '#a78bfa', pattern: 'WindowsTerminal|PowerShell|cmd|Claude|Codex|Copilot|ChatGPT|Gemini' }),
+    createCategoryRule({ id: 'cat-notes', name: 'Notes', color: '#f472b6', pattern: 'Obsidian|Typora|OneNote|Notion|Logseq' }),
+    createCategoryRule({ id: 'cat-paper', name: 'Paper', color: '#38bdf8', pattern: 'Zotero|Acrobat|SumatraPDF|论文' }),
+    createCategoryRule({ id: 'cat-office', name: 'Office', color: '#fb923c', pattern: 'Word|Excel|PowerPoint|WPS' }),
+    createCategoryRule({ id: 'cat-creative', name: 'Creative', color: '#f43f5e', pattern: 'Photoshop|GIMP|Inkscape|Premiere|剪映|Figma' }),
+    createCategoryRule({ id: 'cat-comms', name: 'Comms', color: '#67e8f9', pattern: '微信|WeChat|QQ|Slack|Teams|Discord|Telegram|飞书|Zoom' }),
   ];
 }
 
@@ -194,35 +135,6 @@ export function buildWindowAllowanceFromContext(context) {
     windowId: context.windowId ?? null,
     createdAt: new Date().toISOString(),
   };
-}
-
-export function buildDomainAllowance(input, mode = 'subdomain') {
-  const domain = normalizeDomain(input);
-  return {
-    id: `domain-${domain}-${Date.now()}`,
-    label: domain || input,
-    domain,
-    matchMode: mode === 'exact' ? 'exact' : 'subdomain',
-    createdAt: new Date().toISOString(),
-  };
-}
-
-export function domainMatches(rule, domain) {
-  if (!rule?.domain || !domain) {
-    return false;
-  }
-
-  const normalizedRule = normalizeDomain(rule.domain);
-  const normalizedDomain = normalizeDomain(domain);
-  if (!normalizedRule || !normalizedDomain) {
-    return false;
-  }
-
-  if (rule.matchMode === 'exact') {
-    return normalizedRule === normalizedDomain;
-  }
-
-  return normalizedDomain === normalizedRule || normalizedDomain.endsWith(`.${normalizedRule}`);
 }
 
 export function formatRemaining(remainingMs) {

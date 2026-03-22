@@ -9,7 +9,13 @@ function subscribe(channel, listener) {
 
 contextBridge.exposeInMainWorld('forestApi', {
   getState: () => ipcRenderer.invoke(IPC_CHANNELS.invoke.getState),
-  refreshGuardianStatus: () => ipcRenderer.invoke(IPC_CHANNELS.invoke.refreshGuardianStatus),
+  getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.invoke.getSettings),
+  saveSettings: (payload) => ipcRenderer.invoke(IPC_CHANNELS.invoke.saveSettings, payload),
+  listHistoryFiles: () => ipcRenderer.invoke(IPC_CHANNELS.invoke.listHistoryFiles),
+  readHistoryFile: (fileName) => ipcRenderer.invoke(IPC_CHANNELS.invoke.readHistoryFile, fileName),
+  openHistoryFile: (fileName) => ipcRenderer.invoke(IPC_CHANNELS.invoke.openHistoryFile, fileName),
+  openHistoryDirectory: () => ipcRenderer.invoke(IPC_CHANNELS.invoke.openHistoryDirectory),
+  resetSession: () => ipcRenderer.invoke(IPC_CHANNELS.invoke.resetSession),
   captureCurrentWindow: () => ipcRenderer.invoke(IPC_CHANNELS.invoke.captureCurrentWindow),
   getCurrentContext: () => ipcRenderer.invoke(IPC_CHANNELS.invoke.getCurrentContext),
   startSession: (payload) => ipcRenderer.invoke(IPC_CHANNELS.invoke.startSession, payload),
@@ -17,5 +23,4 @@ contextBridge.exposeInMainWorld('forestApi', {
   openMainWindow: () => ipcRenderer.invoke(IPC_CHANNELS.invoke.openMainWindow),
   subscribeState: (listener) => subscribe(IPC_CHANNELS.push.state, listener),
   subscribeViolation: (listener) => subscribe(IPC_CHANNELS.push.violation, listener),
-  subscribeGuardianStatus: (listener) => subscribe(IPC_CHANNELS.push.guardianStatus, listener),
 });

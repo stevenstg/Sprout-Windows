@@ -1,4 +1,3 @@
-import { domainMatches } from '../shared/models.js';
 import { matchSystemSafelist } from './system-safelist.js';
 
 export function isInternalForestWindow(context) {
@@ -6,13 +5,12 @@ export function isInternalForestWindow(context) {
   return label.includes('sprout');
 }
 
-export function decideContext({ context, allowedWindows, allowedDomains, allowedCategories, systemSafelistEnabled }) {
+export function decideContext({ context, allowedWindows = [], allowedCategories = [], systemSafelistEnabled }) {
   if (!context?.windowId) {
     return {
       allowed: true,
       reason: '未检测到有效前台窗口',
       matchedWindow: null,
-      matchedDomain: null,
       matchedCategory: null,
       matchedSystemRule: null,
     };
@@ -23,7 +21,6 @@ export function decideContext({ context, allowedWindows, allowedDomains, allowed
       allowed: true,
       reason: 'Sprout 自身界面允许前台显示',
       matchedWindow: null,
-      matchedDomain: null,
       matchedCategory: null,
       matchedSystemRule: null,
     };
@@ -35,24 +32,9 @@ export function decideContext({ context, allowedWindows, allowedDomains, allowed
       allowed: true,
       reason: `命中系统安全白名单 ${matchedSystemRule.name}`,
       matchedWindow: null,
-      matchedDomain: null,
       matchedCategory: null,
       matchedSystemRule,
     };
-  }
-
-  if (context.isBrowser && context.domain) {
-    const matchedDomain = allowedDomains.find((rule) => domainMatches(rule, context.domain));
-    if (matchedDomain) {
-      return {
-        allowed: true,
-        reason: `域名 ${context.domain} 命中允许规则`,
-        matchedWindow: null,
-        matchedDomain,
-        matchedCategory: null,
-        matchedSystemRule: null,
-      };
-    }
   }
 
   const matchedWindow = allowedWindows.find((rule) => windowMatches(rule, context));
@@ -61,19 +43,17 @@ export function decideContext({ context, allowedWindows, allowedDomains, allowed
       allowed: true,
       reason: '当前窗口命中允许列表',
       matchedWindow,
-      matchedDomain: null,
       matchedCategory: null,
       matchedSystemRule: null,
     };
   }
 
-  const matchedCategory = (allowedCategories || []).find((rule) => categoryMatches(rule, context));
+  const matchedCategory = allowedCategories.find((rule) => categoryMatches(rule, context));
   if (matchedCategory) {
     return {
       allowed: true,
       reason: `命中分类规则 ${matchedCategory.name}`,
       matchedWindow: null,
-      matchedDomain: null,
       matchedCategory,
       matchedSystemRule: null,
     };
@@ -81,11 +61,8 @@ export function decideContext({ context, allowedWindows, allowedDomains, allowed
 
   return {
     allowed: false,
-    reason: context.isBrowser && context.domain
-      ? `域名 ${context.domain} 和当前窗口都未命中允许规则`
-      : '当前窗口不在允许列表中',
+    reason: '当前窗口不在允许列表中，也未命中分类规则',
     matchedWindow: null,
-    matchedDomain: null,
     matchedCategory: null,
     matchedSystemRule: null,
   };
@@ -114,8 +91,6 @@ function categoryMatches(rule, context) {
     context.title,
     context.processName,
     context.processPath,
-    context.domain,
-    context.url,
   ]
     .filter(Boolean)
     .join(' || ');

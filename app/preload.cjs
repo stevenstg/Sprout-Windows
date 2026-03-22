@@ -7,8 +7,8 @@ const IPC_CHANNELS = {
     saveSettings: 'forest:save-settings',
     listHistoryFiles: 'forest:list-history-files',
     readHistoryFile: 'forest:read-history-file',
+    openHistoryFile: 'forest:open-history-file',
     openHistoryDirectory: 'forest:open-history-directory',
-    refreshGuardianStatus: 'forest:refresh-guardian-status',
     resetSession: 'forest:reset-session',
     captureCurrentWindow: 'forest:capture-current-window',
     getCurrentContext: 'forest:get-current-context',
@@ -19,7 +19,6 @@ const IPC_CHANNELS = {
   push: {
     state: 'forest:state',
     violation: 'forest:violation',
-    guardianStatus: 'forest:guardian-status',
   },
 };
 
@@ -35,8 +34,8 @@ contextBridge.exposeInMainWorld('forestApi', {
   saveSettings: (payload) => ipcRenderer.invoke(IPC_CHANNELS.invoke.saveSettings, payload),
   listHistoryFiles: () => ipcRenderer.invoke(IPC_CHANNELS.invoke.listHistoryFiles),
   readHistoryFile: (fileName) => ipcRenderer.invoke(IPC_CHANNELS.invoke.readHistoryFile, fileName),
+  openHistoryFile: (fileName) => ipcRenderer.invoke(IPC_CHANNELS.invoke.openHistoryFile, fileName),
   openHistoryDirectory: () => ipcRenderer.invoke(IPC_CHANNELS.invoke.openHistoryDirectory),
-  refreshGuardianStatus: () => ipcRenderer.invoke(IPC_CHANNELS.invoke.refreshGuardianStatus),
   resetSession: () => ipcRenderer.invoke(IPC_CHANNELS.invoke.resetSession),
   captureCurrentWindow: () => ipcRenderer.invoke(IPC_CHANNELS.invoke.captureCurrentWindow),
   getCurrentContext: () => ipcRenderer.invoke(IPC_CHANNELS.invoke.getCurrentContext),
@@ -45,5 +44,4 @@ contextBridge.exposeInMainWorld('forestApi', {
   openMainWindow: () => ipcRenderer.invoke(IPC_CHANNELS.invoke.openMainWindow),
   subscribeState: (listener) => subscribe(IPC_CHANNELS.push.state, listener),
   subscribeViolation: (listener) => subscribe(IPC_CHANNELS.push.violation, listener),
-  subscribeGuardianStatus: (listener) => subscribe(IPC_CHANNELS.push.guardianStatus, listener),
 });

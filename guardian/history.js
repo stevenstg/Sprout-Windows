@@ -138,7 +138,6 @@ export function renderDayMarkdown(daySummary, sessions) {
     lines.push(`- 主要窗口：${formatWindow(session.primaryWindow)}`);
     lines.push(`- 主要分类：${formatCategory(session.primaryCategory)}`);
     lines.push(renderList('允许窗口', session.allowedWindows, (item) => item.label || item.initialTitle || item.processName || '未命名窗口'));
-    lines.push(renderList('允许域名', session.allowedDomains, (item) => `${item.domain}（${item.matchMode === 'exact' ? '精确' : '子域'}）`));
     lines.push(renderList('允许分类', session.allowedCategories, (item) => item.name || '未命名分类'));
     lines.push(renderViolations(session.violations));
     lines.push('');

@@ -1,22 +1,12 @@
-const DEFAULT_CATEGORY_RULES = [
-  { id: 'cat-programming', name: 'Programming', color: '#4ade80', pattern: 'GitHub|Stack Overflow|Bitbucket|GitLab|vim|Spyder|kate|Ghidra|Scite|Code|Visual Studio|PyCharm|WebStorm|Terminal|PowerShell', enabled: true },
-  { id: 'cat-ai', name: 'AI', color: '#a78bfa', pattern: 'ChatGPT|Google AI Studio|Claude|Gemini|Copilot|OpenAI|Anthropic|WindowsTerminal|Windows PowerShell|PowerShell', enabled: true },
-  { id: 'cat-notes', name: 'Notes', color: '#f472b6', pattern: 'Open Notebook|Obsidian|Typora|Notion|OneNote|adobe', enabled: true },
-  { id: 'cat-paper', name: 'Paper', color: '#38bdf8', pattern: 'zotero|pdf|论文|paper|Reader|Acrobat', enabled: true },
-  { id: 'cat-office', name: 'Office', color: '#fb923c', pattern: 'powerpoint|word|excel|powerpnt|Acrobat|WPS', enabled: true },
-  { id: 'cat-media', name: 'Media', color: '#f43f5e', pattern: 'Photoshop|GIMP|Inkscape|Premiere|剪映|Image|画图', enabled: true },
-  { id: 'cat-comms', name: 'Comms', color: '#67e8f9', pattern: '微信|WeChat|QQ|Slack|Teams|Discord|Telegram|飞书', enabled: true },
-  { id: 'cat-fun', name: '摸鱼', color: '#84cc16', pattern: 'msedge.exe|Edge|Bilibili|抖音|微博|小红书|youtube|娱乐|wechat', enabled: true },
-];
+import { getDefaultCategoryRules } from '../shared/models.js';
 
+const DEFAULT_CATEGORY_RULES = getDefaultCategoryRules();
 const api = window.forestApi;
 const state = {
   session: null,
   settings: null,
-  guardianStatus: null,
   currentContext: null,
   allowedWindows: [],
-  allowedDomains: [],
   categoryRules: loadCategoryRules(),
   allowedCategories: [],
   exitDifficulty: 'easy',
@@ -33,12 +23,42 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function normalizeCategoryRules(input) {
+  const defaults = clone(DEFAULT_CATEGORY_RULES);
+  if (!Array.isArray(input) || !input.length) {
+    return defaults;
+  }
+
+  const list = input
+    .filter((item) => item && typeof item === 'object')
+    .map((item) => ({
+      id: String(item.id || `category-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`),
+      name: String(item.name || '未命名分类').trim(),
+      color: String(item.color || '#38bdf8'),
+      pattern: String(item.pattern || '').trim(),
+      enabled: item.enabled !== false,
+      createdAt: item.createdAt || new Date().toISOString(),
+    }))
+    .filter((item) => item.name && item.pattern);
+
+  if (!list.length) {
+    return defaults;
+  }
+
+  defaults.forEach((item) => {
+    if (!list.some((rule) => rule.id === item.id)) {
+      list.push(clone(item));
+    }
+  });
+  return list;
+}
+
 function loadCategoryRules() {
   try {
     const saved = localStorage.getItem('forest-category-rules');
     if (!saved) return clone(DEFAULT_CATEGORY_RULES);
     const parsed = JSON.parse(saved);
-    return Array.isArray(parsed) && parsed.length ? parsed : clone(DEFAULT_CATEGORY_RULES);
+    return normalizeCategoryRules(parsed);
   } catch {
     return clone(DEFAULT_CATEGORY_RULES);
   }
@@ -61,7 +81,6 @@ function loadLastRules() {
 function persistLastRules() {
   localStorage.setItem('sprout-last-rules', JSON.stringify({
     allowedWindows: state.allowedWindows,
-    allowedDomains: state.allowedDomains,
     allowedCategories: state.allowedCategories,
   }));
 }
@@ -74,18 +93,6 @@ function reconcileAllowedCategories() {
       return source ? clone(source) : null;
     })
     .filter(Boolean);
-}
-
-function normalizeDomain(input) {
-  if (!input) return '';
-  const raw = String(input).trim();
-  if (!raw) return '';
-  try {
-    const withProtocol = /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(raw) ? raw : `https://${raw}`;
-    return new URL(withProtocol).hostname.toLowerCase();
-  } catch {
-    return raw.replace(/^https?:\/\//i, '').split('/')[0].split('?')[0].toLowerCase();
-  }
 }
 
 function formatTime(ms) {
@@ -112,44 +119,29 @@ function formatDurationMinutes(minutes) {
 function summarizeRules() {
   const parts = [];
   if (state.allowedWindows.length) parts.push(`${state.allowedWindows.length} 个窗口`);
-  if (state.allowedDomains.length) parts.push(`${state.allowedDomains.length} 条域名`);
   if (state.allowedCategories.length) parts.push(state.allowedCategories.map((c) => c.name).join(', '));
   return parts;
-}
-
-function getCompactAwText(current = {}) {
-  if (current.online) {
-    return current.webBucketId ? '标签页识别已启用' : '已连接，仅增强窗口识别';
-  }
-  return '未连接时按整窗口判断浏览器';
 }
 
 function formatContextMeta(current = {}) {
   const parts = [];
   if (current.processName) parts.push(current.processName);
-  if (current.isBrowser && current.domain) parts.push(current.domain);
-  if (current.source === 'merged') parts.push('已增强');
+  if (current.windowId != null) parts.push(`窗口 ${current.windowId}`);
   return parts.join(' · ') || '—';
 }
 
 function formatContextDetail(current = {}) {
-  if (current.isBrowser) {
-    return current.url || current.domain || '—';
-  }
-  return '—';
+  return current.processPath || '—';
 }
 
 function formatContextKind(current = {}) {
-  if (current.isBrowser && current.domain) return '浏览器标签页';
-  if (current.isBrowser) return '浏览器窗口';
-  if (current.processName) return '应用窗口';
+  if (current.processName) return '前台窗口';
   return '未检测到前台窗口';
 }
 
 function showToast(message, tone = 'normal') {
   const toast = el('toast');
   toast.textContent = message;
-  toast.style.borderColor = '';
   toast.classList.toggle('danger', tone === 'danger');
   toast.classList.add('show');
   clearTimeout(showToast.timer);
@@ -195,7 +187,7 @@ function switchRulesTab(name) {
   document.querySelectorAll('.drawer-tab').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.tab === name);
   });
-  ['windows', 'domains', 'categories'].forEach((tab) => {
+  ['windows', 'categories'].forEach((tab) => {
     el(`drawer-tab-${tab}`)?.classList.toggle('hidden', tab !== name);
   });
 }
@@ -205,7 +197,7 @@ function renderDrawerActiveSummary() {
   if (!container) return;
   container.innerHTML = '';
 
-  const hasAny = state.allowedWindows.length || state.allowedDomains.length || state.allowedCategories.length;
+  const hasAny = state.allowedWindows.length || state.allowedCategories.length;
   if (!hasAny) {
     const p = document.createElement('p');
     p.className = 'muted small';
@@ -241,7 +233,6 @@ function renderDrawerActiveSummary() {
   }
 
   addGroup('窗口', state.allowedWindows.map((w) => ({ text: w.label || w.initialTitle || w.processName || '未命名窗口' })));
-  addGroup('域名', state.allowedDomains.map((d) => ({ text: d.domain })));
   addGroup('分类', state.allowedCategories.map((c) => ({ text: c.name, color: c.color })));
 }
 
@@ -264,7 +255,7 @@ function renderFocusView() {
 
 function renderCompactRuleSummary() {
   const parts = summarizeRules();
-  const hasRules = !!(state.allowedWindows.length || state.allowedDomains.length || state.allowedCategories.length);
+  const hasRules = !!(state.allowedWindows.length || state.allowedCategories.length);
   const summaryText = hasRules ? parts.join(' · ') : '尚未配置规则';
   el('rule-summary-text').textContent = summaryText;
   el('compact-rule-summary').textContent = summaryText;
@@ -273,9 +264,6 @@ function renderCompactRuleSummary() {
   chips.innerHTML = '';
   state.allowedWindows.forEach((w) => {
     chips.appendChild(makeChip(w.label || w.processName || '未命名窗口'));
-  });
-  state.allowedDomains.forEach((d) => {
-    chips.appendChild(makeChip(d.domain));
   });
   state.allowedCategories.forEach((c) => {
     chips.appendChild(makeChip(c.name, { category: true, color: c.color }));
@@ -289,29 +277,10 @@ function renderCompactRuleSummary() {
 
 function renderDraftSummary() {
   el('draft-window-count').textContent = String(state.allowedWindows.length);
-  el('draft-domain-count').textContent = String(state.allowedDomains.length);
   el('draft-category-count').textContent = String(state.allowedCategories.length);
   el('draft-system-safelist').textContent = state.settings?.systemSafelistEnabled === false ? '关' : '开';
   el('compact-draft-window-count').textContent = String(state.allowedWindows.length);
-  el('compact-draft-domain-count').textContent = String(state.allowedDomains.length);
   el('compact-draft-category-count').textContent = String(state.allowedCategories.length);
-}
-
-function renderAwStatus(status) {
-  state.guardianStatus = status || state.guardianStatus;
-  const current = state.guardianStatus || {};
-  const badge = el('aw-badge');
-  const compactBadge = el('compact-aw-badge');
-  badge.textContent = current.online ? '已连接' : '未连接';
-  badge.className = `badge ${current.online ? 'badge-online' : 'badge-offline'}`;
-  compactBadge.textContent = badge.textContent;
-  compactBadge.className = badge.className;
-  el('aw-note').textContent = current.note || 'ActivityWatch 未连接';
-  el('aw-debug').textContent = current.online
-    ? `window: ${current.windowBucketId || '—'} · web: ${current.webBucketId || '—'}`
-    : `mode: ${current.mode || 'windows-only'} · checked: ${current.checkedAt || '—'}`;
-  el('compact-aw-text').textContent = getCompactAwText(current);
-  el('aw-status-json').textContent = JSON.stringify(current, null, 2);
 }
 
 function renderContext(context) {
@@ -354,25 +323,15 @@ function makeChip(label, options = {}) {
 
 function renderAllowedLists() {
   const windowsList = el('windows-list');
-  const domainsList = el('domains-list');
   const categoriesList = el('selected-categories-list');
   windowsList.innerHTML = '';
-  domainsList.innerHTML = '';
   categoriesList.innerHTML = '';
   el('windows-empty').style.display = state.allowedWindows.length ? 'none' : 'block';
-  el('domains-empty').style.display = state.allowedDomains.length ? 'none' : 'block';
   el('selected-categories-empty').style.display = state.allowedCategories.length ? 'none' : 'block';
 
   state.allowedWindows.forEach((item) => windowsList.appendChild(makeChip(item.label || item.initialTitle || item.processName || '未命名窗口', {
     onRemove: () => {
       state.allowedWindows = state.allowedWindows.filter((row) => row.id !== item.id);
-      renderAllowedLists();
-    },
-  })));
-
-  state.allowedDomains.forEach((item) => domainsList.appendChild(makeChip(`${item.domain} · ${item.matchMode === 'exact' ? '精确' : '子域'}`, {
-    onRemove: () => {
-      state.allowedDomains = state.allowedDomains.filter((row) => row.id !== item.id);
       renderAllowedLists();
     },
   })));
@@ -453,7 +412,7 @@ function renderViolations(violations = [], targetId, emptyId) {
     row.innerHTML = `
       <h4>${item.title || item.processName || '未知窗口'}</h4>
       <p class="muted small">${formatWhen(item.timestamp)} · ${item.reason || '已拦截'}</p>
-      <p class="muted small">${item.domain || item.processPath || '无附加信息'}</p>
+      <p class="muted small">${item.processPath || '无附加信息'}</p>
     `;
     list.appendChild(row);
   });
@@ -479,8 +438,10 @@ function renderFocusState(session) {
   if (session.status === 'running') {
     running.classList.add('active');
     el('running-timer').textContent = formatTime(session.remainingMs);
-    el('running-subtitle').textContent = `窗口 ${session.allowedWindows.length} 个，域名 ${session.allowedDomains.length} 条，分类 ${session.allowedCategories.length} 条`;
+    el('running-subtitle').textContent = `窗口 ${session.allowedWindows.length} 个，分类 ${session.allowedCategories.length} 条`;
     el('metric-violations').textContent = String(session.violationCount || 0);
+    el('metric-allowed-windows').textContent = String(session.allowedWindows.length || 0);
+    el('metric-allowed-categories').textContent = String(session.allowedCategories.length || 0);
     const latest = (session.violations || []).slice(-1)[0];
     el('latest-violation-title').textContent = latest?.title || latest?.processName || '暂无';
     el('latest-violation-reason').textContent = latest ? `${latest.reason} · ${formatWhen(latest.timestamp)}` : '还没有拦截记录。';
@@ -493,9 +454,9 @@ function renderFocusState(session) {
   const summary = session.summary || {};
   const reasonMap = { completed: '倒计时结束', cancelled: '手动结束' };
   const actualDurationMinutes = Number(summary.actualDurationMinutes ?? summary.durationMinutes ?? 0);
-  const plannedDurationMinutes = Number(summary.plannedDurationMinutes ?? summary.durationMinutes ?? 0);
-  el('result-title').textContent = session.status === 'completed' ? '这轮专注已完成' : '这轮专注已结束';
-  el('result-subtitle').textContent = summary.startedAt ? `${formatWhen(summary.startedAt)} → ${formatWhen(summary.endedAt)}` : '—';
+  const plannedDurationMinutes = Number(summary.plannedDurationMinutes ?? 0);
+  el('result-title').textContent = session.status === 'completed' ? '本轮专注完成' : '本轮专注已结束';
+  el('result-subtitle').textContent = `${(summary.primaryCategory?.name || '未分类')} / ${(summary.primaryWindow?.label || summary.primaryWindow?.initialTitle || summary.primaryWindow?.processName || '未记录窗口')}`;
   el('result-duration').textContent = formatDurationMinutes(actualDurationMinutes);
   el('result-violations').textContent = String(summary.violationCount || 0);
   el('result-reason').textContent = reasonMap[summary.completionReason] || '—';
@@ -509,38 +470,27 @@ function renderFocusState(session) {
 
 function renderSummaryLists(summary) {
   const windows = el('result-windows');
-  const domains = el('result-domains');
   const categories = el('result-categories');
   windows.innerHTML = '';
-  domains.innerHTML = '';
-  if (categories) {
-    categories.innerHTML = '';
-  }
+  categories.innerHTML = '';
   (summary.allowedWindows || []).forEach((item) => windows.appendChild(makeChip(item.label || item.initialTitle || item.processName || '未命名窗口')));
-  (summary.allowedDomains || []).forEach((item) => domains.appendChild(makeChip(`${item.domain} · ${item.matchMode === 'exact' ? '精确' : '子域'}`)));
-  if (categories) {
-    (summary.allowedCategories || []).forEach((item) => categories.appendChild(makeChip(item.name, { category: true, color: item.color })));
-  }
+  (summary.allowedCategories || []).forEach((item) => categories.appendChild(makeChip(item.name, { category: true, color: item.color })));
   if (!(summary.allowedWindows || []).length) windows.innerHTML = '<div class="empty">没有窗口规则</div>';
-  if (!(summary.allowedDomains || []).length) domains.innerHTML = '<div class="empty">没有域名规则</div>';
-  if (categories && !(summary.allowedCategories || []).length) categories.innerHTML = '<div class="empty">没有分类规则</div>';
+  if (!(summary.allowedCategories || []).length) categories.innerHTML = '<div class="empty">没有分类规则</div>';
 }
 
 function renderSession(session) {
   state.session = session;
-  renderAwStatus(session.guardianStatus);
   renderContext(session.currentContext);
   renderFocusState(session);
   renderViolations(session.violations || [], 'violations-list', 'violations-empty');
   renderViolations(session.violations || (session.summary?.violations) || [], 'violations-result-list', 'violations-result-empty');
   renderSummaryLists(session.summary || {
     allowedWindows: session.allowedWindows,
-    allowedDomains: session.allowedDomains,
     allowedCategories: session.allowedCategories,
   });
   renderFocusView();
 }
-
 function fillCategoryEditor(rule) {
   el('category-name-input').value = rule.name || '';
   el('category-pattern-input').value = rule.pattern || '';
@@ -633,7 +583,6 @@ async function loadSettings() {
   el('history-dir-input').value = state.settings.historyDir || '';
   el('auto-write-history-input').checked = state.settings.autoWriteHistory !== false;
   el('system-safelist-enabled-input').checked = state.settings.systemSafelistEnabled !== false;
-  el('close-browser-tab-on-violation-input').checked = state.settings.closeBrowserTabOnViolation === true;
   el('exit-difficulty-input').value = state.settings.exitDifficulty || 'easy';
   state.exitDifficulty = state.settings.exitDifficulty || 'easy';
   renderSystemSafelist(state.settings.systemSafelistRules || []);
@@ -645,7 +594,6 @@ async function saveSettings() {
     historyDir: el('history-dir-input').value.trim() || state.settings?.historyDir || '',
     autoWriteHistory: el('auto-write-history-input').checked,
     systemSafelistEnabled: el('system-safelist-enabled-input').checked,
-    closeBrowserTabOnViolation: el('close-browser-tab-on-violation-input').checked,
     exitDifficulty: el('exit-difficulty-input').value,
   };
   state.settings = await api.saveSettings(patch);
@@ -656,16 +604,12 @@ async function saveSettings() {
   await refreshHistoryFiles();
 }
 
-function parseHistoryHeadings(content) {
-  return content
-    .split(/\r?\n/)
-    .filter((line) => line.startsWith('## '))
-    .filter((line) => !line.startsWith('## 当日摘要'))
-    .map((line) => line.replace(/^##\s+/, '').trim());
-}
-
 async function refreshHistoryFiles() {
-  state.historyFiles = await api.listHistoryFiles();
+  const files = await api.listHistoryFiles();
+  state.historyFiles = files.slice(0, 3);
+  if (state.selectedHistoryFile && !state.historyFiles.some((file) => file.fileName === state.selectedHistoryFile)) {
+    state.selectedHistoryFile = null;
+  }
   const list = el('history-files-list');
   list.innerHTML = '';
   el('history-files-empty').style.display = state.historyFiles.length ? 'none' : 'block';
@@ -675,7 +619,18 @@ async function refreshHistoryFiles() {
     const btn = document.createElement('button');
     btn.innerHTML = `<h4>${file.fileName}</h4><p class="muted small">${formatWhen(file.modifiedAt)}</p>`;
     btn.addEventListener('click', () => loadHistoryFile(file.fileName));
+    const openBtn = document.createElement('button');
+    openBtn.className = 'history-open-btn';
+    openBtn.type = 'button';
+    openBtn.title = '打开这个 Markdown 文件';
+    openBtn.setAttribute('aria-label', `打开 ${file.fileName}`);
+    openBtn.textContent = '↗';
+    openBtn.addEventListener('click', async (event) => {
+      event.stopPropagation();
+      await api.openHistoryFile(file.fileName);
+    });
     row.appendChild(btn);
+    row.appendChild(openBtn);
     list.appendChild(row);
   });
 
@@ -690,20 +645,24 @@ async function loadHistoryFile(fileName) {
   state.historyContent = payload.content;
   el('history-preview-title').textContent = payload.fileName;
   el('history-preview').textContent = payload.content;
-
-  const headings = parseHistoryHeadings(payload.content);
-  const headingsList = el('history-headings-list');
-  headingsList.innerHTML = '';
-  el('history-headings-empty').style.display = headings.length ? 'none' : 'block';
-  headings.forEach((heading) => {
-    const row = document.createElement('div');
-    row.className = 'timeline-item';
-    row.innerHTML = `<h4>${heading}</h4>`;
-    headingsList.appendChild(row);
-  });
   document.querySelectorAll('.history-file').forEach((node) => {
     node.classList.toggle('active', node.textContent.includes(payload.fileName));
   });
+}
+
+async function refreshCurrentContext(showTip = false) {
+  if (!api) return;
+  try {
+    const context = await api.getCurrentContext();
+    renderContext(context);
+    if (showTip) {
+      showToast('已刷新当前上下文');
+    }
+  } catch (error) {
+    if (showTip) {
+      showToast(error.message || '刷新失败', 'danger');
+    }
+  }
 }
 
 async function refreshInitialState() {
@@ -712,11 +671,9 @@ async function refreshInitialState() {
     return;
   }
 
-  // Load last used rules from localStorage
   const lastRules = loadLastRules();
   if (lastRules) {
     state.allowedWindows = lastRules.allowedWindows || [];
-    state.allowedDomains = lastRules.allowedDomains || [];
     state.allowedCategories = lastRules.allowedCategories || [];
     reconcileAllowedCategories();
   }
@@ -732,18 +689,6 @@ async function refreshInitialState() {
   } catch (error) {
     console.error(error);
     showToast('初始化状态失败，请稍后重试', 'danger');
-  }
-}
-
-async function refreshGuardianHealth() {
-  if (!api) return;
-  try {
-    const status = await api.refreshGuardianStatus();
-    renderAwStatus(status);
-    const session = await api.getState();
-    renderSession(session);
-  } catch (error) {
-    console.error(error);
   }
 }
 
@@ -764,34 +709,10 @@ async function handleCaptureWindow() {
   }
 }
 
-function handleAddDomain() {
-  const input = el('domain-input');
-  const mode = el('domain-mode').value;
-  const domain = normalizeDomain(input.value);
-  if (!domain) {
-    showToast('域名不能为空', 'danger');
-    return;
-  }
-  if (state.allowedDomains.some((item) => item.domain === domain && item.matchMode === mode)) {
-    showToast('这条域名规则已经存在');
-    return;
-  }
-  state.allowedDomains.push({
-    id: `domain-${domain}-${Date.now()}`,
-    label: domain,
-    domain,
-    matchMode: mode,
-    createdAt: new Date().toISOString(),
-  });
-  input.value = '';
-  renderAllowedLists();
-  showToast(`已添加域名：${domain}`);
-}
-
 async function handleStartSession() {
   const durationMinutes = Number(el('duration-minutes').value || 25);
-  if (!state.allowedWindows.length && !state.allowedDomains.length && !state.allowedCategories.length) {
-    showToast('至少要有一个允许窗口、域名或分类', 'danger');
+  if (!state.allowedWindows.length && !state.allowedCategories.length) {
+    showToast('至少要有一个允许窗口或分类', 'danger');
     return;
   }
 
@@ -800,7 +721,6 @@ async function handleStartSession() {
     const session = await api.startSession({
       durationMinutes,
       allowedWindows: state.allowedWindows,
-      allowedDomains: state.allowedDomains,
       allowedCategories: state.allowedCategories,
       exitProtection: { type: 'typing' },
     });
@@ -825,7 +745,6 @@ async function stopSession() {
 async function backToRules() {
   const summary = state.session?.summary || {};
   state.allowedWindows = clone(summary.allowedWindows || state.allowedWindows);
-  state.allowedDomains = clone(summary.allowedDomains || state.allowedDomains);
   state.allowedCategories = clone(summary.allowedCategories || state.allowedCategories);
   try {
     const idle = await api.resetSession();
@@ -915,9 +834,7 @@ async function confirmExitChallenge() {
   hideExitChallenge();
   await stopSession();
 }
-
 function bindEvents() {
-  // Drawer open/close
   el('edit-rules-btn').addEventListener('click', () => openDrawer('rules'));
   el('close-rules-drawer').addEventListener('click', () => closeDrawer('rules'));
   el('open-history-btn').addEventListener('click', () => {
@@ -933,68 +850,46 @@ function bindEvents() {
   el('compact-open-settings-btn').addEventListener('click', () => openDrawer('settings'));
   el('close-settings-drawer').addEventListener('click', () => closeDrawer('settings'));
 
-  // Close drawer on backdrop click
   ['rules', 'history', 'settings'].forEach((name) => {
-    el(`${name}-drawer-overlay`).addEventListener('click', (e) => {
-      if (e.target === el(`${name}-drawer-overlay`)) closeDrawer(name);
+    el(`${name}-drawer-overlay`).addEventListener('click', (event) => {
+      if (event.target === el(`${name}-drawer-overlay`)) closeDrawer(name);
     });
   });
 
-  // Close drawer on Escape
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
       ['rules', 'history', 'settings'].forEach((name) => {
         if (!el(`${name}-drawer-overlay`).classList.contains('hidden')) closeDrawer(name);
       });
     }
   });
 
-  // Rules drawer tabs
   document.querySelectorAll('.drawer-tab').forEach((btn) => {
     btn.addEventListener('click', () => switchRulesTab(btn.dataset.tab));
   });
 
-  // Rules editing
   el('capture-window-btn').addEventListener('click', handleCaptureWindow);
-  el('add-domain-btn').addEventListener('click', handleAddDomain);
   el('save-category-btn').addEventListener('click', upsertCategoryRule);
   el('restore-default-categories-btn').addEventListener('click', restoreDefaultCategories);
 
-  // Session
   el('start-session-btn').addEventListener('click', handleStartSession);
   el('back-to-rules-btn').addEventListener('click', backToRules);
   el('duration-minutes').addEventListener('input', updateHeroIdleTimer);
 
-  // Context refresh
-  el('refresh-context-btn').addEventListener('click', async () => {
-    try {
-      const context = await api.getCurrentContext();
-      renderContext(context);
-      showToast('已刷新当前上下文');
-    } catch (error) {
-      showToast(error.message || '刷新失败', 'danger');
-    }
-  });
+  el('refresh-context-btn').addEventListener('click', () => refreshCurrentContext(true));
 
-  // History
   el('refresh-history-btn').addEventListener('click', refreshHistoryFiles);
   el('open-history-dir-btn').addEventListener('click', async () => {
     await api.openHistoryDirectory();
   });
 
-  // Settings
   el('save-settings-btn').addEventListener('click', saveSettings);
-  el('refresh-aw-settings-btn').addEventListener('click', async () => {
-    await refreshGuardianHealth();
-    showToast('已刷新 AW 诊断');
-  });
 
-  // Exit challenge
   el('exit-challenge-btn').addEventListener('click', showExitChallenge);
   el('challenge-cancel-btn').addEventListener('click', hideExitChallenge);
   el('challenge-confirm-btn').addEventListener('click', confirmExitChallenge);
-  el('challenge-input').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') confirmExitChallenge();
+  el('challenge-input').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') confirmExitChallenge();
   });
 
   if (!api) return;
@@ -1008,10 +903,15 @@ function bindEvents() {
   api.subscribeViolation((violation) => {
     showToast(`已拦截：${violation.title || violation.processName || '未知窗口'}`, 'danger');
   });
-  api.subscribeGuardianStatus((status) => renderAwStatus(status));
 }
 
 bindEvents();
 renderFocusView();
+renderAllowedLists();
+renderCategoryRules();
 refreshInitialState();
-setInterval(refreshGuardianHealth, 4000);
+setInterval(() => {
+  if (state.session?.status !== 'running') {
+    refreshCurrentContext(false);
+  }
+}, 4000);

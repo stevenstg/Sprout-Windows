@@ -5,7 +5,7 @@ import { createInterface } from 'node:readline';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { IPC_CHANNELS, GUARDIAN_MESSAGES, GUARDIAN_REQUESTS } from './shared/ipc.js';
-import { createGuardianStatus, createInitialSessionState, formatRemaining, getDefaultSystemSafelistRules } from './shared/models.js';
+import { createInitialSessionState, formatRemaining, getDefaultSystemSafelistRules } from './shared/models.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,18 +21,21 @@ class SettingsStore {
       historyDir: path.join(app.getPath('documents'), 'Sprout', 'history'),
       autoWriteHistory: true,
       systemSafelistEnabled: true,
-      closeBrowserTabOnViolation: false,
-      closeBrowserTabDelayMs: 180,
+      exitDifficulty: 'easy',
       systemSafelistRules: getDefaultSystemSafelistRules(),
     };
   }
 
   normalizeSettings(input = {}) {
     const defaults = this.getDefaults();
+    const exitDifficulty = ['easy', 'medium', 'hard'].includes(input?.exitDifficulty)
+      ? input.exitDifficulty
+      : defaults.exitDifficulty;
     return {
-      ...defaults,
-      ...input,
       historyDir: String(input?.historyDir || '').trim() || defaults.historyDir,
+      autoWriteHistory: input?.autoWriteHistory !== false,
+      systemSafelistEnabled: input?.systemSafelistEnabled !== false,
+      exitDifficulty,
       systemSafelistRules: defaults.systemSafelistRules,
     };
   }
@@ -46,7 +49,7 @@ class SettingsStore {
       const raw = await fs.readFile(this.file, 'utf8');
       const stored = JSON.parse(raw);
       this.settings = this.normalizeSettings(stored);
-      if (this.settings.historyDir !== stored?.historyDir) {
+      if (JSON.stringify(this.settings) !== JSON.stringify(stored)) {
         await fs.mkdir(path.dirname(this.file), { recursive: true });
         await fs.writeFile(this.file, JSON.stringify(this.settings, null, 2), 'utf8');
       }
@@ -82,7 +85,6 @@ class GuardianBridge {
     this.pending = new Map();
     this.requestId = 0;
     this.state = createInitialSessionState();
-    this.status = this.state.guardianStatus;
   }
 
   async start(bootstrapPayload, onPush) {
@@ -132,21 +134,15 @@ class GuardianBridge {
       }
       this.pending.clear();
       this.process = null;
-      this.status = createGuardianStatus({
-        online: false,
-        note: `guardian 进程已退出（code=${code ?? 'null'} signal=${signal ?? 'none'}）`,
-      });
-      this.onPush?.('guardian-status', this.status);
+      this.onPush?.('state', this.state);
     });
 
     await this.request(GUARDIAN_REQUESTS.bootstrap, this.bootstrapPayload);
   }
 
   async request(type, payload = {}) {
-    if (!this.process?.stdin) {
-      if (this.bootstrapPayload) {
-        await this.start(this.bootstrapPayload, this.onPush);
-      }
+    if (!this.process?.stdin && this.bootstrapPayload) {
+      await this.start(this.bootstrapPayload, this.onPush);
     }
 
     if (!this.process?.stdin) {
@@ -195,16 +191,8 @@ class GuardianBridge {
       return;
     }
 
-    if (message.type === GUARDIAN_MESSAGES.status) {
-      if (message.payload) {
-        this.status = message.payload;
-      }
-      this.onPush?.('guardian-status', this.status);
-      return;
-    }
-
     if (message.type === GUARDIAN_MESSAGES.ready) {
-      this.onPush?.('guardian-status', this.status);
+      this.onPush?.('state', this.state);
     }
   }
 }
@@ -267,22 +255,19 @@ function refreshTrayMenu() {
   }
 
   const state = guardian.state || createInitialSessionState();
+  const contextLabel = state.currentContext?.title || state.currentContext?.processName || '等待前台窗口';
   const menu = Menu.buildFromTemplate([
     {
       label: state.status === 'running' ? `专注中 ${formatRemaining(state.remainingMs)}` : 'Sprout',
       enabled: false,
     },
     {
-      label: guardian.status?.online ? 'ActivityWatch 已连接' : 'ActivityWatch 未连接',
+      label: contextLabel,
       enabled: false,
     },
     { type: 'separator' },
     {
       label: '打开主界面',
-      click: () => ensureWindowVisible(),
-    },
-    {
-      label: '查看 AW 状态',
       click: () => ensureWindowVisible(),
     },
     {
@@ -315,22 +300,18 @@ app.whenReady().then(async () => {
   settingsStore = new SettingsStore(userDataDir);
   appSettings = await settingsStore.load();
   const logDir = path.join(userDataDir, 'logs');
-    await guardian.start({
-      logDir,
-      historyDir: appSettings.historyDir,
-      preferences: {
-        autoWriteHistory: appSettings.autoWriteHistory,
-        systemSafelistEnabled: appSettings.systemSafelistEnabled,
-        closeBrowserTabOnViolation: appSettings.closeBrowserTabOnViolation,
-        closeBrowserTabDelayMs: appSettings.closeBrowserTabDelayMs,
-      },
-    }, (kind, payload) => {
+  await guardian.start({
+    logDir,
+    historyDir: appSettings.historyDir,
+    preferences: {
+      autoWriteHistory: appSettings.autoWriteHistory,
+      systemSafelistEnabled: appSettings.systemSafelistEnabled,
+    },
+  }, (kind, payload) => {
     if (kind === 'state') {
       broadcast(IPC_CHANNELS.push.state, payload);
     } else if (kind === 'violation') {
       broadcast(IPC_CHANNELS.push.violation, payload);
-    } else if (kind === 'guardian-status') {
-      broadcast(IPC_CHANNELS.push.guardianStatus, payload);
     }
   });
 
@@ -342,8 +323,6 @@ app.whenReady().then(async () => {
       preferences: {
         autoWriteHistory: appSettings.autoWriteHistory,
         systemSafelistEnabled: appSettings.systemSafelistEnabled,
-        closeBrowserTabOnViolation: appSettings.closeBrowserTabOnViolation,
-        closeBrowserTabDelayMs: appSettings.closeBrowserTabDelayMs,
       },
       historyDir: appSettings.historyDir,
     });
@@ -373,12 +352,17 @@ app.whenReady().then(async () => {
     const content = await fs.readFile(fullPath, 'utf8');
     return { fileName: safeName, fullPath, content };
   });
+  ipcMain.handle(IPC_CHANNELS.invoke.openHistoryFile, async (_event, fileName) => {
+    const settings = await settingsStore.load();
+    const safeName = path.basename(fileName || '');
+    const fullPath = path.join(settings.historyDir, safeName);
+    return shell.openPath(fullPath);
+  });
   ipcMain.handle(IPC_CHANNELS.invoke.openHistoryDirectory, async () => {
     const settings = await settingsStore.load();
     await fs.mkdir(settings.historyDir, { recursive: true });
     return shell.openPath(settings.historyDir);
   });
-  ipcMain.handle(IPC_CHANNELS.invoke.refreshGuardianStatus, async () => guardian.request(GUARDIAN_REQUESTS.refreshStatus));
   ipcMain.handle(IPC_CHANNELS.invoke.resetSession, async () => guardian.request(GUARDIAN_REQUESTS.resetSession));
   ipcMain.handle(IPC_CHANNELS.invoke.captureCurrentWindow, async () => guardian.request(GUARDIAN_REQUESTS.captureCurrentWindow));
   ipcMain.handle(IPC_CHANNELS.invoke.getCurrentContext, async () => guardian.request(GUARDIAN_REQUESTS.getCurrentContext));

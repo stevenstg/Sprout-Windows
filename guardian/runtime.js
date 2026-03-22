@@ -1,11 +1,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { ActivityWatchClient } from '../integrations/activitywatch/client.js';
 import { regenerateHistoryMarkdown, toLocalDateKey } from './history.js';
 import {
   buildWindowAllowanceFromContext,
   createEmptyActiveContext,
-  createGuardianStatus,
   createInitialSessionState,
 } from '../shared/models.js';
 import { decideContext } from './rules.js';
@@ -13,8 +11,8 @@ import { WindowsService } from './windows-service.js';
 
 const MONITOR_INTERVAL_MS = 350;
 const CLOCK_INTERVAL_MS = 250;
-const DUPLICATE_VIOLATION_WINDOW_MS = 1500;
-const DEFAULT_CLOSE_BROWSER_TAB_DELAY_MS = 180;
+const DUPLICATE_VIOLATION_WINDOW_MS = 8000;
+const POST_VIOLATION_CONTEXT_DELAY_MS = 120;
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -25,7 +23,6 @@ export class GuardianRuntime {
     this.send = send;
     this.logger = logger;
     this.windows = new WindowsService();
-    this.activityWatch = new ActivityWatchClient();
     this.state = createInitialSessionState();
     this.monitorTimer = null;
     this.clockTimer = null;
@@ -36,8 +33,6 @@ export class GuardianRuntime {
     this.preferences = {
       autoWriteHistory: true,
       systemSafelistEnabled: true,
-      closeBrowserTabOnViolation: false,
-      closeBrowserTabDelayMs: DEFAULT_CLOSE_BROWSER_TAB_DELAY_MS,
     };
     this.lastViolation = { signature: '', at: 0 };
     this.matchStats = {
@@ -60,7 +55,8 @@ export class GuardianRuntime {
       await fs.mkdir(this.historyDir, { recursive: true });
     }
 
-    await this.refreshGuardianStatus(true);
+    this.state.systemSafelistEnabled = this.preferences.systemSafelistEnabled !== false;
+    await this.resolveCurrentContext();
     this.startContextTracking();
     this.send({ type: 'ready', payload: { ok: true } });
     return { ok: true };
@@ -72,8 +68,6 @@ export class GuardianRuntime {
         return this.bootstrap(request.payload);
       case 'get-state':
         return this.getState();
-      case 'refresh-status':
-        return this.refreshGuardianStatus(true);
       case 'reset-session':
         return this.resetSession();
       case 'update-preferences':
@@ -116,14 +110,6 @@ export class GuardianRuntime {
     };
   }
 
-  async refreshGuardianStatus(force = false) {
-    const guardianStatus = await this.activityWatch.probe(force);
-    this.state.guardianStatus = guardianStatus;
-    this.send({ type: 'status', payload: guardianStatus });
-    this.sendState();
-    return guardianStatus;
-  }
-
   async captureCurrentWindow() {
     const context = this.lastExternalContext?.windowId
       ? structuredClone(this.lastExternalContext)
@@ -163,12 +149,41 @@ export class GuardianRuntime {
   }
 
   async resolveCurrentContext() {
-    const systemContext = this.windows.captureSystemContext();
-    const { context, guardianStatus } = await this.activityWatch.enrichContext(systemContext);
-    this.state.currentContext = context || createEmptyActiveContext();
-    this.state.guardianStatus = guardianStatus || createGuardianStatus();
+    const context = this.captureForegroundContext();
+    this.state.currentContext = context;
     this.sendState();
     return this.state.currentContext;
+  }
+
+  captureForegroundContext() {
+    return this.windows.captureSystemContext() || createEmptyActiveContext();
+  }
+
+  async resolvePostViolationContext(previousContext) {
+    const immediate = this.captureForegroundContext();
+    if (this.isStablePostViolationContext(immediate, previousContext)) {
+      return immediate;
+    }
+
+    await delay(POST_VIOLATION_CONTEXT_DELAY_MS);
+    const delayed = this.captureForegroundContext();
+    if (delayed?.windowId) {
+      return delayed;
+    }
+
+    return immediate?.windowId ? immediate : createEmptyActiveContext();
+  }
+
+  isStablePostViolationContext(candidate, previousContext) {
+    if (!candidate?.windowId) {
+      return false;
+    }
+
+    if (!previousContext?.windowId) {
+      return true;
+    }
+
+    return candidate.windowId !== previousContext.windowId;
   }
 
   async startSession(payload) {
@@ -178,10 +193,9 @@ export class GuardianRuntime {
 
     const durationMinutes = Number(payload?.durationMinutes || 25);
     const allowedWindows = Array.isArray(payload?.allowedWindows) ? payload.allowedWindows : [];
-    const allowedDomains = Array.isArray(payload?.allowedDomains) ? payload.allowedDomains : [];
     const allowedCategories = Array.isArray(payload?.allowedCategories) ? payload.allowedCategories : [];
-    if (!allowedWindows.length && !allowedDomains.length && !allowedCategories.length) {
-      throw new Error('至少需要一个允许窗口、允许域名或允许分类');
+    if (!allowedWindows.length && !allowedCategories.length) {
+      throw new Error('至少需要一个允许窗口或允许分类');
     }
 
     const now = Date.now();
@@ -195,11 +209,9 @@ export class GuardianRuntime {
       durationMinutes,
       remainingMs: endsAt - now,
       allowedWindows,
-      allowedDomains,
       allowedCategories,
       currentContext,
       recentAllowedWindow: allowedWindows[0] ?? null,
-      guardianStatus: this.state.guardianStatus,
       systemSafelistEnabled: this.preferences.systemSafelistEnabled !== false,
       exitProtection: payload?.exitProtection ?? { type: 'hold', holdToExitMs: 3000 },
     };
@@ -211,7 +223,6 @@ export class GuardianRuntime {
     await this.writeLog('session-started', {
       durationMinutes,
       allowedWindows,
-      allowedDomains,
       allowedCategories,
     });
 
@@ -239,7 +250,6 @@ export class GuardianRuntime {
       violationCount: this.state.violationCount,
       violations: this.state.violations,
       allowedWindows: this.state.allowedWindows,
-      allowedDomains: this.state.allowedDomains,
       allowedCategories: this.state.allowedCategories,
       primaryWindow,
       primaryCategory,
@@ -264,7 +274,6 @@ export class GuardianRuntime {
     this.stopLoops();
     this.state = {
       ...createInitialSessionState(),
-      guardianStatus: this.state.guardianStatus,
       currentContext: this.state.currentContext,
       systemSafelistEnabled: this.preferences.systemSafelistEnabled !== false,
     };
@@ -312,15 +321,12 @@ export class GuardianRuntime {
       return;
     }
 
-    const systemContext = this.windows.captureSystemContext();
-    const { context, guardianStatus } = await this.activityWatch.enrichContext(systemContext);
+    const context = this.captureForegroundContext();
     this.state.currentContext = context;
-    this.state.guardianStatus = guardianStatus;
 
     const decision = decideContext({
       context,
       allowedWindows: this.state.allowedWindows,
-      allowedDomains: this.state.allowedDomains,
       allowedCategories: this.state.allowedCategories,
       systemSafelistEnabled: this.preferences.systemSafelistEnabled !== false,
     });
@@ -339,63 +345,28 @@ export class GuardianRuntime {
       return;
     }
 
-    const signature = `${context.windowId}:${context.title}:${decision.reason}`;
+    const signature = `${context.windowId}:${context.processPath || context.processName}:${decision.reason}`;
     const now = Date.now();
     if (signature === this.lastViolation.signature && now - this.lastViolation.at < DUPLICATE_VIOLATION_WINDOW_MS) {
+      const postContext = await this.resolvePostViolationContext(context);
+      this.state.currentContext = postContext;
+      this.lastViolation = this.isStablePostViolationContext(postContext, context)
+        ? { signature: '', at: 0 }
+        : { signature, at: now };
       this.sendState();
       return;
     }
 
     this.lastViolation = { signature, at: now };
 
-    let minimized = false;
-    let restored = false;
-    let closedBrowserTab = false;
-    let recoveredAfterClosingTab = false;
-
-    if (this.preferences.closeBrowserTabOnViolation && context.isBrowser && context.windowId) {
-      closedBrowserTab = await this.windows.closeActiveBrowserTab(context.windowId);
-      if (closedBrowserTab) {
-        const closeDelay = Number(this.preferences.closeBrowserTabDelayMs) || DEFAULT_CLOSE_BROWSER_TAB_DELAY_MS;
-        await delay(Math.max(80, closeDelay));
-
-        const afterSystemContext = this.windows.captureSystemContext();
-        const afterResult = await this.activityWatch.enrichContext(afterSystemContext);
-        this.state.currentContext = afterResult.context;
-        this.state.guardianStatus = afterResult.guardianStatus;
-
-        const afterDecision = decideContext({
-          context: afterResult.context,
-          allowedWindows: this.state.allowedWindows,
-          allowedDomains: this.state.allowedDomains,
-          allowedCategories: this.state.allowedCategories,
-          systemSafelistEnabled: this.preferences.systemSafelistEnabled !== false,
-        });
-
-        if (afterDecision.allowed) {
-          recoveredAfterClosingTab = true;
-          if (afterDecision.matchedWindow) {
-            this.state.recentAllowedWindow = afterDecision.matchedWindow;
-            this.trackMatch('windowHits', afterDecision.matchedWindow.id);
-          }
-
-          if (afterDecision.matchedCategory) {
-            this.trackMatch('categoryHits', afterDecision.matchedCategory.id);
-          }
-        } else {
-          minimized = afterResult.context?.windowId ? this.windows.minimizeWindow(afterResult.context.windowId) : false;
-          if (this.state.recentAllowedWindow?.windowId) {
-            restored = this.windows.restoreWindow(this.state.recentAllowedWindow.windowId);
-          }
-        }
-      }
-    }
-
-    if (!recoveredAfterClosingTab && !minimized) {
-      minimized = context.windowId ? this.windows.minimizeWindow(context.windowId) : false;
-      if (this.state.recentAllowedWindow?.windowId) {
-        restored = this.windows.restoreWindow(this.state.recentAllowedWindow.windowId);
-      }
+    const minimized = context.windowId ? this.windows.minimizeWindow(context.windowId) : false;
+    const restored = this.state.recentAllowedWindow?.windowId
+      ? this.windows.restoreWindow(this.state.recentAllowedWindow.windowId)
+      : false;
+    const postContext = await this.resolvePostViolationContext(context);
+    this.state.currentContext = postContext;
+    if (this.isStablePostViolationContext(postContext, context)) {
+      this.lastViolation = { signature: '', at: 0 };
     }
 
     const violation = {
@@ -408,9 +379,6 @@ export class GuardianRuntime {
       reason: decision.reason,
       minimized,
       restoredAllowedWindow: restored,
-      domain: context.domain || '',
-      closedBrowserTab,
-      recoveredAfterClosingTab,
       suppressedBySystemSafelist: false,
     };
 

@@ -1,20 +1,19 @@
 {
   "name": "sprout",
   "version": "1.0.0",
-  "description": "Windows 专注白名单工具，支持 ActivityWatch 感知增强。",
+  "description": "Windows 专注白名单工具。",
   "main": "main.js",
   "scripts": {
     "start": "electron . 2>&1 | findstr /V \"libpng\"",
     "guardian": "node guardian/child.js",
     "build:icon": "node scripts/build-icon.js",
     "smoke": "node scripts/smoke.js",
-    "check": "node --check main.js && node --check guardian/child.js && node --check guardian/rules.js && node --check guardian/runtime.js && node --check guardian/windows-service.js && node --check integrations/activitywatch/client.js && node --check shared/ipc.js && node --check shared/models.js && node --check app/preload.cjs && node --check app/renderer.js && node scripts/smoke.js"
+    "check": "node --check main.js && node --check guardian/child.js && node --check guardian/history.js && node --check guardian/rules.js && node --check guardian/runtime.js && node --check guardian/windows-service.js && node --check shared/ipc.js && node --check shared/models.js && node --check app/preload.cjs && node --check app/preload.js && node --check app/renderer.js && node scripts/smoke.js"
   },
   "keywords": [
     "electron",
     "windows",
-    "focus",
-    "activitywatch"
+    "focus"
   ],
   "author": "OpenAI Codex",
   "license": "ISC",
