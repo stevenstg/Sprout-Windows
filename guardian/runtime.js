@@ -372,9 +372,6 @@ export class GuardianRuntime {
     const signature = `${context.windowId}:${context.processPath || context.processName}:${decision.reason}`;
     const now = Date.now();
     const minimized = context.windowId ? this.windows.minimizeWindow(context.windowId) : false;
-    const restored = this.state.recentAllowedWindow?.windowId
-      ? this.windows.restoreWindow(this.state.recentAllowedWindow.windowId)
-      : false;
     const postContext = await this.resolvePostViolationContext(context);
     this.state.currentContext = postContext;
 
@@ -399,7 +396,7 @@ export class GuardianRuntime {
       windowId: context.windowId,
       reason: decision.reason,
       minimized,
-      restoredAllowedWindow: restored,
+      restoredAllowedWindow: false,
       suppressedBySystemSafelist: false,
     };
 

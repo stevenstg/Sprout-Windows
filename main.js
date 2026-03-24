@@ -8,11 +8,17 @@ import { GuardianRuntime } from './guardian/runtime.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const localAppDataRoot = app.isPackaged ? 'Sprout' : 'Sprout-dev';
 const localAppDataDir = process.env.LOCALAPPDATA
-  ? path.join(process.env.LOCALAPPDATA, 'Sprout')
+  ? path.join(process.env.LOCALAPPDATA, localAppDataRoot)
   : path.join(__dirname, '.sprout-local');
+const userDataDirOverride = path.join(localAppDataDir, 'user-data');
+const sessionDataDirOverride = path.join(localAppDataDir, 'session-data');
+const diskCacheDirOverride = path.join(localAppDataDir, 'cache');
 
-app.setPath('sessionData', path.join(localAppDataDir, 'session-data'));
+app.setPath('userData', userDataDirOverride);
+app.setPath('sessionData', sessionDataDirOverride);
+app.commandLine.appendSwitch('disk-cache-dir', diskCacheDirOverride);
 
 class SettingsStore {
   constructor(baseDir) {
