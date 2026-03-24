@@ -16,6 +16,8 @@ const initialState = createInitialSessionState();
 assert.equal(Array.isArray(initialState.allowedWindows), true);
 assert.equal(Array.isArray(initialState.allowedCategories), true);
 assert.equal('allowedDomains' in initialState, false);
+assert.equal(initialState.sessionMode, 'countdown');
+assert.equal(initialState.elapsedMs, 0);
 
 const defaultCategories = getDefaultCategoryRules();
 assert.deepEqual(
@@ -136,6 +138,33 @@ assert.equal(runtime.state.violations.length, 1);
 await runtime.monitorTick();
 assert.equal(runtime.state.violations.length, 1);
 
+const countupRuntime = new GuardianRuntime({
+  send: () => {},
+  logger: console,
+});
+countupRuntime.windows = {
+  captureSystemContext() {
+    return postContext;
+  },
+  minimizeWindow() {
+    return true;
+  },
+  restoreWindow() {
+    return true;
+  },
+};
+const countupState = await countupRuntime.startSession({
+  sessionMode: 'countup',
+  allowedWindows: [buildWindowAllowanceFromContext(postContext)],
+  allowedCategories: [],
+});
+assert.equal(countupState.sessionMode, 'countup');
+assert.equal(countupState.durationMinutes, 0);
+assert.equal(countupState.endsAt, null);
+const endedCountup = await countupRuntime.endSession('cancelled');
+assert.equal(endedCountup.summary.sessionMode, 'countup');
+assert.equal(endedCountup.summary.plannedDurationMinutes, null);
+
 const tempRoot = await fs.mkdtemp(path.join(process.cwd(), 'tmp-forest-history-'));
 const logDir = path.join(tempRoot, 'logs');
 const historyDir = path.join(tempRoot, 'history');
@@ -165,6 +194,7 @@ assert.equal(markdown.includes('## '), true);
 assert.equal(markdown.includes('Visual Studio Code'), true);
 assert.equal(markdown.includes('实际时长：12 分钟'), true);
 assert.equal(markdown.includes('计划时长：25 分钟'), true);
+assert.equal(markdown.includes('模式：倒计时'), true);
 assert.equal(markdown.includes('允许域名'), false);
 
 console.log('smoke 通过');

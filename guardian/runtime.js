@@ -142,6 +142,9 @@ export class GuardianRuntime {
   }
 
   isOwnApp(ctx) {
+    if (ctx?.processId && Number(ctx.processId) === process.pid) {
+      return true;
+    }
     const processPath = String(ctx?.processPath || '').toLowerCase();
     const processName = String(ctx?.processName || '').toLowerCase();
     return processPath.includes('sprout')
@@ -191,7 +194,10 @@ export class GuardianRuntime {
       throw new Error('已有专注会话在运行');
     }
 
-    const durationMinutes = Number(payload?.durationMinutes || 25);
+    const sessionMode = payload?.sessionMode === 'countup' ? 'countup' : 'countdown';
+    const durationMinutes = sessionMode === 'countdown'
+      ? Number(payload?.durationMinutes || 25)
+      : 0;
     const allowedWindows = Array.isArray(payload?.allowedWindows) ? payload.allowedWindows : [];
     const allowedCategories = Array.isArray(payload?.allowedCategories) ? payload.allowedCategories : [];
     if (!allowedWindows.length && !allowedCategories.length) {
@@ -199,15 +205,17 @@ export class GuardianRuntime {
     }
 
     const now = Date.now();
-    const endsAt = now + durationMinutes * 60_000;
+    const endsAt = sessionMode === 'countdown' ? now + durationMinutes * 60_000 : null;
     const currentContext = await this.resolveCurrentContext();
     this.state = {
       ...createInitialSessionState(),
       status: 'running',
+      sessionMode,
       startedAt: new Date(now).toISOString(),
-      endsAt: new Date(endsAt).toISOString(),
+      endsAt: endsAt ? new Date(endsAt).toISOString() : null,
       durationMinutes,
-      remainingMs: endsAt - now,
+      remainingMs: sessionMode === 'countdown' ? endsAt - now : 0,
+      elapsedMs: 0,
       allowedWindows,
       allowedCategories,
       currentContext,
@@ -221,6 +229,7 @@ export class GuardianRuntime {
     };
 
     await this.writeLog('session-started', {
+      sessionMode,
       durationMinutes,
       allowedWindows,
       allowedCategories,
@@ -242,11 +251,12 @@ export class GuardianRuntime {
     const primaryWindow = this.derivePrimaryWindow();
     const primaryCategory = this.derivePrimaryCategory();
     const summary = {
+      sessionMode: this.state.sessionMode,
       startedAt: this.state.startedAt,
       endedAt,
       durationMinutes: actualDurationMinutes,
       actualDurationMinutes,
-      plannedDurationMinutes: this.state.durationMinutes,
+      plannedDurationMinutes: this.state.sessionMode === 'countdown' ? this.state.durationMinutes : null,
       violationCount: this.state.violationCount,
       violations: this.state.violations,
       allowedWindows: this.state.allowedWindows,
@@ -294,6 +304,12 @@ export class GuardianRuntime {
     }, MONITOR_INTERVAL_MS);
 
     this.clockTimer = setInterval(() => {
+      if (this.state.sessionMode === 'countup') {
+        this.state.elapsedMs = Math.max(0, Date.now() - Date.parse(this.state.startedAt));
+        this.sendState();
+        return;
+      }
+
       const remainingMs = Math.max(0, Date.parse(this.state.endsAt) - Date.now());
       this.state.remainingMs = remainingMs;
       if (remainingMs === 0 && this.state.status === 'running') {

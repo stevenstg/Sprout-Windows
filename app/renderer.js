@@ -9,6 +9,7 @@ const state = {
   allowedWindows: [],
   categoryRules: loadCategoryRules(),
   allowedCategories: [],
+  sessionMode: 'countdown',
   exitDifficulty: 'easy',
   challengeTimer: null,
   historyFiles: [],
@@ -114,6 +115,17 @@ function formatDurationMinutes(minutes) {
   if (hours <= 0) return `${rest} 分钟`;
   if (rest === 0) return `${hours} 小时`;
   return `${hours} 小时 ${rest} 分钟`;
+}
+
+function formatClock(ms) {
+  const totalSeconds = Math.max(0, Math.floor((ms || 0) / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
 function summarizeRules() {
@@ -237,8 +249,20 @@ function renderDrawerActiveSummary() {
 }
 
 function updateHeroIdleTimer() {
-  const minutes = Number(el('duration-minutes')?.value || 25);
-  el('hero-idle-timer').textContent = `${String(minutes).padStart(2, '0')}:00`;
+  if (state.sessionMode === 'countup') {
+    el('hero-idle-timer').textContent = '00:00';
+  } else {
+    const minutes = Number(el('duration-minutes')?.value || 25);
+    el('hero-idle-timer').textContent = `${String(minutes).padStart(2, '0')}:00`;
+  }
+}
+
+function renderSessionModeSwitch() {
+  const mode = state.sessionMode || 'countdown';
+  document.querySelectorAll('#session-mode-switch .mode-switch-btn').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+  el('duration-minutes').closest('.duration-picker').classList.toggle('hidden', mode === 'countup');
 }
 
 function renderFocusView() {
@@ -273,6 +297,7 @@ function renderCompactRuleSummary() {
   if (startBtn) startBtn.disabled = !hasRules;
   const hint = el('hero-rules-hint');
   if (hint) hint.classList.toggle('hidden', hasRules);
+  renderSessionModeSwitch();
 }
 
 function renderDraftSummary() {
@@ -437,8 +462,10 @@ function renderFocusState(session) {
 
   if (session.status === 'running') {
     running.classList.add('active');
-    el('running-timer').textContent = formatTime(session.remainingMs);
-    el('running-subtitle').textContent = `窗口 ${session.allowedWindows.length} 个，分类 ${session.allowedCategories.length} 条`;
+    el('running-timer').textContent = session.sessionMode === 'countup'
+      ? formatClock(session.elapsedMs)
+      : formatTime(session.remainingMs);
+    el('running-subtitle').textContent = `${session.sessionMode === 'countup' ? '正计时中' : '正在守住你这轮允许规则'} · 窗口 ${session.allowedWindows.length} 个，分类 ${session.allowedCategories.length} 条`;
     el('metric-violations').textContent = String(session.violationCount || 0);
     el('metric-allowed-windows').textContent = String(session.allowedWindows.length || 0);
     el('metric-allowed-categories').textContent = String(session.allowedCategories.length || 0);
@@ -460,7 +487,7 @@ function renderFocusState(session) {
   el('result-duration').textContent = formatDurationMinutes(actualDurationMinutes);
   el('result-violations').textContent = String(summary.violationCount || 0);
   el('result-reason').textContent = reasonMap[summary.completionReason] || '—';
-  if (plannedDurationMinutes && plannedDurationMinutes !== actualDurationMinutes) {
+  if (summary.sessionMode !== 'countup' && plannedDurationMinutes && plannedDurationMinutes !== actualDurationMinutes) {
     el('result-subtitle').textContent = `${el('result-subtitle').textContent} · 计划 ${formatDurationMinutes(plannedDurationMinutes)}`;
   }
   const latest = (summary.violations || []).slice(-1)[0];
@@ -481,6 +508,9 @@ function renderSummaryLists(summary) {
 
 function renderSession(session) {
   state.session = session;
+  if (session?.status === 'running') {
+    state.sessionMode = session.sessionMode || state.sessionMode || 'countdown';
+  }
   renderContext(session.currentContext);
   renderFocusState(session);
   renderViolations(session.violations || [], 'violations-list', 'violations-empty');
@@ -680,6 +710,9 @@ async function refreshInitialState() {
 
   try {
     const [session, context] = await Promise.all([api.getState(), api.getCurrentContext()]);
+    if (session?.status === 'running') {
+      state.sessionMode = session.sessionMode || state.sessionMode || 'countdown';
+    }
     renderSession(session);
     renderContext(context);
     renderAllowedLists();
@@ -710,7 +743,9 @@ async function handleCaptureWindow() {
 }
 
 async function handleStartSession() {
-  const durationMinutes = Number(el('duration-minutes').value || 25);
+  const durationMinutes = state.sessionMode === 'countdown'
+    ? Number(el('duration-minutes').value || 25)
+    : 0;
   if (!state.allowedWindows.length && !state.allowedCategories.length) {
     showToast('至少要有一个允许窗口或分类', 'danger');
     return;
@@ -719,6 +754,7 @@ async function handleStartSession() {
   try {
     persistLastRules();
     const session = await api.startSession({
+      sessionMode: state.sessionMode,
       durationMinutes,
       allowedWindows: state.allowedWindows,
       allowedCategories: state.allowedCategories,
@@ -746,9 +782,13 @@ async function backToRules() {
   const summary = state.session?.summary || {};
   state.allowedWindows = clone(summary.allowedWindows || state.allowedWindows);
   state.allowedCategories = clone(summary.allowedCategories || state.allowedCategories);
+  state.sessionMode = summary.sessionMode || state.sessionMode || 'countdown';
   try {
     const idle = await api.resetSession();
     renderSession(idle);
+    state.sessionMode = summary.sessionMode || state.sessionMode || 'countdown';
+    updateHeroIdleTimer();
+    renderSessionModeSwitch();
     renderAllowedLists();
     renderCategoryRules();
     showToast('规则已保留，可以开始新专注');
@@ -875,6 +915,13 @@ function bindEvents() {
   el('start-session-btn').addEventListener('click', handleStartSession);
   el('back-to-rules-btn').addEventListener('click', backToRules);
   el('duration-minutes').addEventListener('input', updateHeroIdleTimer);
+  document.querySelectorAll('#session-mode-switch .mode-switch-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.sessionMode = btn.dataset.mode === 'countup' ? 'countup' : 'countdown';
+      updateHeroIdleTimer();
+      renderSessionModeSwitch();
+    });
+  });
 
   el('refresh-context-btn').addEventListener('click', () => refreshCurrentContext(true));
 

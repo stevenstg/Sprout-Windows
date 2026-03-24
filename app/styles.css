@@ -122,6 +122,26 @@ pre { margin: 0; font-family: 'Cascadia Code', Consolas, monospace; }
 .hero-heading { margin-bottom: 10px; }
 .hero-heading h2 { margin: 0; font-size: 30px; }
 .hero-timer { font-size: 72px; font-weight: 800; margin: 0 0 8px; letter-spacing: -2px; color: var(--text); }
+.mode-switch {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  margin: 0 auto 14px;
+  border-radius: 16px;
+  background: rgba(70,120,50,0.08);
+}
+.mode-switch-btn {
+  border-radius: 12px;
+  padding: 8px 14px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+}
+.mode-switch-btn.active {
+  background: rgba(255,255,255,0.92);
+  color: var(--text);
+  box-shadow: 0 1px 4px rgba(30,60,20,0.10);
+}
 .duration-picker { display: inline-flex; align-items: center; gap: 10px; margin: 12px 0 20px; }
 .duration-picker { justify-self: center; }
 .duration-picker label { font-size: 13px; color: var(--muted); }

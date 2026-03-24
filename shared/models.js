@@ -14,10 +14,12 @@ export function createEmptyActiveContext() {
 export function createInitialSessionState() {
   return {
     status: 'idle',
+    sessionMode: 'countdown',
     startedAt: null,
     endsAt: null,
     durationMinutes: 25,
     remainingMs: 0,
+    elapsedMs: 0,
     violationCount: 0,
     violations: [],
     allowedWindows: [],
@@ -89,8 +91,8 @@ export function getDefaultSystemSafelistRules() {
       id: 'system-screenshot',
       name: '截图工具',
       description: '放行 Windows 截图工具（截图和草图、Snipping Tool）及截图相关覆盖层。',
-      processPatterns: ['SnippingTool.exe', 'ScreenSketch.exe', 'ScreenClippingHost.exe'],
-      titlePatterns: ['截图和草图', 'Snipping Tool', '截图工具', 'Screen Snip'],
+      processPatterns: ['SnippingTool.exe', 'ScreenSketch.exe', 'ScreenClippingHost.exe', 'Snipaste.exe'],
+      titlePatterns: ['截图和草图', 'Snipping Tool', '截图工具', 'Screen Snip', 'Snipaste', 'Paste UI', '贴图'],
     }),
   ];
 }
@@ -115,7 +117,7 @@ export function createCategoryRule({
 
 export function getDefaultCategoryRules() {
   return [
-    createCategoryRule({ id: 'cat-programming', name: 'Programming', color: '#4ade80', pattern: 'Visual Studio Code|PyCharm|WebStorm|vim|Spyder|Ghidra|SciTE|Cursor' }),
+    createCategoryRule({ id: 'cat-programming', name: 'Programming', color: '#4ade80', pattern: 'Visual Studio Code|PyCharm|WebStorm|vim|Spyder|Ghidra|SciTE|Cursor|electron.exe|Electron' }),
     createCategoryRule({ id: 'cat-ai', name: 'AI', color: '#a78bfa', pattern: 'WindowsTerminal|PowerShell|cmd|Claude|Codex|Copilot|ChatGPT|Gemini' }),
     createCategoryRule({ id: 'cat-notes', name: 'Notes', color: '#f472b6', pattern: 'Obsidian|Typora|OneNote|Notion|Logseq' }),
     createCategoryRule({ id: 'cat-paper', name: 'Paper', color: '#38bdf8', pattern: 'Zotero|Acrobat|SumatraPDF|论文' }),

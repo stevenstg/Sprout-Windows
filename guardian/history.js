@@ -129,6 +129,7 @@ export function renderDayMarkdown(daySummary, sessions) {
     lines.push('');
     lines.push(`- 开始时间：${toLocalDateTime(session.startedAt)}`);
     lines.push(`- 结束时间：${toLocalDateTime(session.endedAt)}`);
+    lines.push(`- 模式：${session.sessionMode === 'countup' ? '正计时' : '倒计时'}`);
     lines.push(`- 实际时长：${formatDurationMinutes(actualDuration)}`);
     if (plannedDuration) {
       lines.push(`- 计划时长：${formatDurationMinutes(plannedDuration)}`);

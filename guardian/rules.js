@@ -1,6 +1,9 @@
 import { matchSystemSafelist } from './system-safelist.js';
 
 export function isInternalForestWindow(context) {
+  if (context?.processId && Number(context.processId) === process.pid) {
+    return true;
+  }
   const label = `${context.processName ?? ''} ${context.processPath ?? ''} ${context.title ?? ''}`.toLowerCase();
   return label.includes('sprout');
 }

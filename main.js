@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-import { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, shell } from 'electron';
+import { app, BrowserWindow, Menu, Notification, Tray, ipcMain, nativeImage, shell } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { IPC_CHANNELS, GUARDIAN_MESSAGES, GUARDIAN_REQUESTS } from './shared/ipc.js';
@@ -8,6 +8,11 @@ import { GuardianRuntime } from './guardian/runtime.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const localAppDataDir = process.env.LOCALAPPDATA
+  ? path.join(process.env.LOCALAPPDATA, 'Sprout')
+  : path.join(__dirname, '.sprout-local');
+
+app.setPath('sessionData', path.join(localAppDataDir, 'session-data'));
 
 class SettingsStore {
   constructor(baseDir) {
@@ -163,6 +168,7 @@ let forceQuit = false;
 const guardian = new GuardianBridge();
 let settingsStore = null;
 let appSettings = null;
+let lastSessionStatus = 'idle';
 
 function broadcast(channel, payload) {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -207,6 +213,26 @@ function ensureWindowVisible() {
 
   mainWindow.show();
   mainWindow.focus();
+}
+
+function notifySessionCompleted(state) {
+  const durationMinutes = Number(state?.summary?.actualDurationMinutes ?? state?.summary?.durationMinutes ?? 0);
+  const body = durationMinutes > 0
+    ? `本轮专注已完成，共 ${durationMinutes} 分钟。`
+    : '本轮专注已完成。';
+
+  shell.beep();
+  if (!Notification.isSupported()) {
+    return;
+  }
+
+  const notification = new Notification({
+    title: 'Sprout',
+    body,
+    silent: false,
+  });
+  notification.on('click', () => ensureWindowVisible());
+  notification.show();
 }
 
 function refreshTrayMenu() {
@@ -270,7 +296,12 @@ app.whenReady().then(async () => {
   };
   const onGuardianPush = (kind, payload) => {
     if (kind === 'state') {
+      const previousStatus = lastSessionStatus;
+      lastSessionStatus = payload?.status || 'idle';
       broadcast(IPC_CHANNELS.push.state, payload);
+      if (previousStatus === 'running' && payload?.status === 'completed') {
+        notifySessionCompleted(payload);
+      }
     } else if (kind === 'violation') {
       broadcast(IPC_CHANNELS.push.violation, payload);
     }
