@@ -4,11 +4,11 @@
 
 # Sprout
 
-**开始倒计时，专注之外的窗口一律消失。**
+**开始专注，专注之外的窗口一律消失。**
 
 *界面设计参考 [网费很贵](https://github.com/sheepzh/time-tracker-4-browser) · 社区 [linux.do](https://linux.do)*
 
-[![Platform](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows)](https://github.com/stevenstg/Sprout-Windows)
+[![Platform](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows)](https://github.com/stevenstg/Sprout-Focus-Windows)
 [![Electron](https://img.shields.io/badge/Electron-41-47848F?logo=electron)](https://www.electronjs.org/)
 [![License](https://img.shields.io/badge/license-ISC-green)](LICENSE)
 
@@ -36,7 +36,7 @@
 
 ## 它做什么
 
-会话开始后，Sprout 的守卫进程每 350ms 检查一次前台窗口。不在白名单里的窗口会被立刻最小化，并把焦点拉回到上一个允许的窗口。每次拦截计入违规记录，会话结束后生成 Markdown 摘要。
+会话开始后，Sprout 的守卫进程每 350ms 检查一次前台窗口。不在白名单里的窗口会被立刻最小化，由 Windows 决定接下来聚焦哪个窗口。每次拦截计入违规记录，会话结束后生成 Markdown 摘要。
 
 ![主界面截图](README.assets/main-ui.png)
 
@@ -50,8 +50,12 @@
 浏览器内容的管控交给浏览器插件，例如`网费很贵/BlockSite`处理，Sprout 专注于桌面窗口层面的拦截，高度建议搭配浏览器插件使用Sprout。
 
 ## 快速开始
+
+也可以直接下载 `Sprout Setup 1.1.0.exe` 安装运行，无需 Node.js 环境。或下载 `win-unpacked` 便携目录，直接运行其中的 `Sprout.exe`。
+
+从源码运行：
 ```bash
-git clone https://github.com/stevenstg/Sprout-Windows.git
+git clone https://github.com/stevenstg/Sprout-Focus-Windows.git
 cd Sprout-Windows
 npm install
 npm start
@@ -89,8 +93,9 @@ Windows 端完全找不到开源免费的同类项目，为数不多的选择都
 
 如果 Sprout 帮你守住过一次专注，欢迎点个 Star ⭐
 
-[![GitHub stars](https://img.shields.io/github/stars/stevenstg/Sprout-Windows?style=social)](https://github.com/stevenstg/Sprout-Windows/stargazers)
+[![GitHub stars](https://img.shields.io/github/stars/stevenstg/Sprout-Windows?style=social)](https://github.com/stevenstg/Sprout-Focus-Windows/stargazers)
 
-有 bug 或想法？[开一个 Issue](https://github.com/stevenstg/Sprout-Windows/issues) · 欢迎 [Pull Request](https://github.com/stevenstg/Sprout-Windows/pulls)
+有 bug 或想法？[开一个 Issue](https://github.com/stevenstg/Sprout-Focus-Windows/issues) · 欢迎 [Pull Request](https://github.com/stevenstg/Sprout-Focus-Windows/pulls)
 
 </div>
+
