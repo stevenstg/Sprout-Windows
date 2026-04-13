@@ -20,7 +20,25 @@ const state = {
   lastCategoryRuleAnchorId: null,
 };
 
-const el = (id) => document.getElementById(id);
+const __elCache = new Map();
+const el = (id) => {
+  let cached = __elCache.get(id);
+  if (!cached || !document.contains(cached)) {
+    cached = document.getElementById(id);
+    if (cached) __elCache.set(id, cached);
+  }
+  return cached;
+};
+
+function escapeHTML(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -209,14 +227,15 @@ function switchRulesTab(name) {
 function renderDrawerActiveSummary() {
   const container = el('drawer-active-summary');
   if (!container) return;
-  container.innerHTML = '';
 
+  const frag = document.createDocumentFragment();
   const hasAny = state.allowedWindows.length || state.allowedCategories.length;
   if (!hasAny) {
     const p = document.createElement('p');
     p.className = 'muted small';
     p.textContent = '尚未选择任何规则';
-    container.appendChild(p);
+    frag.appendChild(p);
+    container.replaceChildren(frag);
     return;
   }
 
@@ -236,18 +255,19 @@ function renderDrawerActiveSummary() {
       if (color) {
         const dot = document.createElement('span');
         dot.className = 'color-dot';
-        dot.style.background = color;
+        dot.style.background = escapeHTML(color);
         chip.appendChild(dot);
       }
       chip.appendChild(document.createTextNode(text));
       wrap.appendChild(chip);
     });
     row.appendChild(wrap);
-    container.appendChild(row);
+    frag.appendChild(row);
   }
 
   addGroup('窗口', state.allowedWindows.map((w) => ({ text: w.label || w.initialTitle || w.processName || '未命名窗口' })));
   addGroup('分类', state.allowedCategories.map((c) => ({ text: c.name, color: c.color })));
+  container.replaceChildren(frag);
 }
 
 function updateHeroIdleTimer() {
@@ -287,13 +307,14 @@ function renderCompactRuleSummary() {
   el('compact-rule-summary').textContent = summaryText;
 
   const chips = el('rule-summary-chips');
-  chips.innerHTML = '';
+  const frag = document.createDocumentFragment();
   state.allowedWindows.forEach((w) => {
-    chips.appendChild(makeChip(w.label || w.processName || '未命名窗口'));
+    frag.appendChild(makeChip(w.label || w.processName || '未命名窗口'));
   });
   state.allowedCategories.forEach((c) => {
-    chips.appendChild(makeChip(c.name, { category: true, color: c.color }));
+    frag.appendChild(makeChip(c.name, { category: true, color: c.color }));
   });
+  chips.replaceChildren(frag);
 
   const startBtn = el('start-session-btn');
   if (startBtn) startBtn.disabled = !hasRules;
@@ -351,23 +372,25 @@ function makeChip(label, options = {}) {
 function renderAllowedLists() {
   const windowsList = el('windows-list');
   const categoriesList = el('selected-categories-list');
-  windowsList.innerHTML = '';
-  categoriesList.innerHTML = '';
   el('windows-empty').style.display = state.allowedWindows.length ? 'none' : 'block';
   el('selected-categories-empty').style.display = state.allowedCategories.length ? 'none' : 'block';
 
-  state.allowedWindows.forEach((item) => windowsList.appendChild(makeChip(item.label || item.initialTitle || item.processName || '未命名窗口', {
+  const wFrag = document.createDocumentFragment();
+  state.allowedWindows.forEach((item) => wFrag.appendChild(makeChip(item.label || item.initialTitle || item.processName || '未命名窗口', {
     onRemove: () => {
       state.allowedWindows = state.allowedWindows.filter((row) => row.id !== item.id);
       renderAllowedLists();
     },
   })));
+  windowsList.replaceChildren(wFrag);
 
-  state.allowedCategories.forEach((item) => categoriesList.appendChild(makeChip(`${item.name} · ${item.pattern}`, {
+  const cFrag = document.createDocumentFragment();
+  state.allowedCategories.forEach((item) => cFrag.appendChild(makeChip(`${item.name} · ${item.pattern}`, {
     category: true,
     color: item.color,
     onRemove: () => toggleCategorySelection(item.id),
   })));
+  categoriesList.replaceChildren(cFrag);
 
   persistLastRules();
   renderDraftSummary();
@@ -377,7 +400,7 @@ function renderAllowedLists() {
 
 function renderCategoryRules() {
   const list = el('category-rule-list');
-  list.innerHTML = '';
+  const frag = document.createDocumentFragment();
   state.categoryRules.forEach((rule) => {
     const selected = state.allowedCategories.some((item) => item.id === rule.id);
     const row = document.createElement('div');
@@ -385,8 +408,8 @@ function renderCategoryRules() {
     row.dataset.categoryRuleId = rule.id;
     row.innerHTML = `
       <div class="rule-main">
-        <div><span class="color-dot" style="background:${rule.color}"></span><strong>${rule.name}</strong></div>
-        <p class="muted small">Rule: ${rule.pattern || '—'}</p>
+        <div><span class="color-dot" style="background:${escapeHTML(rule.color)}"></span><strong>${escapeHTML(rule.name)}</strong></div>
+        <p class="muted small">Rule: ${escapeHTML(rule.pattern) || '—'}</p>
       </div>
       <div class="rule-actions">
         <button class="btn small ${selected ? 'ghost' : 'primary'}" data-action="toggle">${selected ? '移出' : '加入'}</button>
@@ -397,8 +420,9 @@ function renderCategoryRules() {
     row.querySelector('[data-action="toggle"]').addEventListener('click', () => toggleCategorySelection(rule.id));
     row.querySelector('[data-action="edit"]').addEventListener('click', () => fillCategoryEditor(rule));
     row.querySelector('[data-action="delete"]').addEventListener('click', () => removeCategoryRule(rule.id));
-    list.appendChild(row);
+    frag.appendChild(row);
   });
+  list.replaceChildren(frag);
   if (state.lastCategoryRuleAnchorId) {
     requestAnimationFrame(() => scrollCategoryRuleIntoView(state.lastCategoryRuleAnchorId));
     state.lastCategoryRuleAnchorId = null;
@@ -407,42 +431,44 @@ function renderCategoryRules() {
 
 function renderSystemSafelist(rules = []) {
   const list = el('system-safelist-list');
-  list.innerHTML = '';
+  const frag = document.createDocumentFragment();
   rules.forEach((rule) => {
     const row = document.createElement('div');
     row.className = 'rule-row';
     row.innerHTML = `
       <div class="rule-main">
-        <h4>${rule.name}</h4>
-        <p class="muted small">${rule.description || '系统关键窗口保护'}</p>
-        <p class="muted small">进程：${(rule.processPatterns || []).join(' | ') || '—'}</p>
-        <p class="muted small">标题：${(rule.titlePatterns || []).join(' | ') || '—'}</p>
+        <h4>${escapeHTML(rule.name)}</h4>
+        <p class="muted small">${escapeHTML(rule.description) || '系统关键窗口保护'}</p>
+        <p class="muted small">进程：${escapeHTML((rule.processPatterns || []).join(' | ')) || '—'}</p>
+        <p class="muted small">标题：${escapeHTML((rule.titlePatterns || []).join(' | ')) || '—'}</p>
       </div>
       <div class="rule-actions"><button class="btn ghost" disabled>默认锁定</button></div>
     `;
-    list.appendChild(row);
+    frag.appendChild(row);
   });
+  list.replaceChildren(frag);
 }
 
 function renderViolations(violations = [], targetId, emptyId) {
   const list = el(targetId);
-  list.innerHTML = '';
   const empty = emptyId ? el(emptyId) : null;
   if (empty) empty.style.display = violations.length ? 'none' : 'block';
   if (!violations.length && !emptyId) {
     list.innerHTML = '<div class="empty">本轮没有违规。</div>';
     return;
   }
+  const frag = document.createDocumentFragment();
   violations.slice().reverse().forEach((item) => {
     const row = document.createElement('div');
     row.className = 'timeline-item';
     row.innerHTML = `
-      <h4>${item.title || item.processName || '未知窗口'}</h4>
-      <p class="muted small">${formatWhen(item.timestamp)} · ${item.reason || '已拦截'}</p>
-      <p class="muted small">${item.processPath || '无附加信息'}</p>
+      <h4>${escapeHTML(item.title || item.processName || '未知窗口')}</h4>
+      <p class="muted small">${escapeHTML(formatWhen(item.timestamp))} · ${escapeHTML(item.reason || '已拦截')}</p>
+      <p class="muted small">${escapeHTML(item.processPath || '无附加信息')}</p>
     `;
-    list.appendChild(row);
+    frag.appendChild(row);
   });
+  list.replaceChildren(frag);
 }
 
 function renderFocusState(session) {
@@ -500,12 +526,22 @@ function renderFocusState(session) {
 function renderSummaryLists(summary) {
   const windows = el('result-windows');
   const categories = el('result-categories');
-  windows.innerHTML = '';
-  categories.innerHTML = '';
-  (summary.allowedWindows || []).forEach((item) => windows.appendChild(makeChip(item.label || item.initialTitle || item.processName || '未命名窗口')));
-  (summary.allowedCategories || []).forEach((item) => categories.appendChild(makeChip(item.name, { category: true, color: item.color })));
-  if (!(summary.allowedWindows || []).length) windows.innerHTML = '<div class="empty">没有窗口规则</div>';
-  if (!(summary.allowedCategories || []).length) categories.innerHTML = '<div class="empty">没有分类规则</div>';
+  
+  if (!(summary.allowedWindows || []).length) {
+    windows.innerHTML = '<div class="empty">没有窗口规则</div>';
+  } else {
+    const wFrag = document.createDocumentFragment();
+    summary.allowedWindows.forEach((item) => wFrag.appendChild(makeChip(item.label || item.initialTitle || item.processName || '未命名窗口')));
+    windows.replaceChildren(wFrag);
+  }
+
+  if (!(summary.allowedCategories || []).length) {
+    categories.innerHTML = '<div class="empty">没有分类规则</div>';
+  } else {
+    const cFrag = document.createDocumentFragment();
+    summary.allowedCategories.forEach((item) => cFrag.appendChild(makeChip(item.name, { category: true, color: item.color })));
+    categories.replaceChildren(cFrag);
+  }
 }
 
 function renderSession(session) {
@@ -643,19 +679,19 @@ async function refreshHistoryFiles() {
     state.selectedHistoryFile = null;
   }
   const list = el('history-files-list');
-  list.innerHTML = '';
   el('history-files-empty').style.display = state.historyFiles.length ? 'none' : 'block';
+  const frag = document.createDocumentFragment();
   state.historyFiles.forEach((file) => {
     const row = document.createElement('div');
     row.className = `history-file ${state.selectedHistoryFile === file.fileName ? 'active' : ''}`;
     const btn = document.createElement('button');
-    btn.innerHTML = `<h4>${file.fileName}</h4><p class="muted small">${formatWhen(file.modifiedAt)}</p>`;
+    btn.innerHTML = `<h4>${escapeHTML(file.fileName)}</h4><p class="muted small">${escapeHTML(formatWhen(file.modifiedAt))}</p>`;
     btn.addEventListener('click', () => loadHistoryFile(file.fileName));
     const openBtn = document.createElement('button');
     openBtn.className = 'history-open-btn';
     openBtn.type = 'button';
     openBtn.title = '打开这个 Markdown 文件';
-    openBtn.setAttribute('aria-label', `打开 ${file.fileName}`);
+    openBtn.setAttribute('aria-label', `打开 ${escapeHTML(file.fileName)}`);
     openBtn.textContent = '↗';
     openBtn.addEventListener('click', async (event) => {
       event.stopPropagation();
@@ -663,8 +699,9 @@ async function refreshHistoryFiles() {
     });
     row.appendChild(btn);
     row.appendChild(openBtn);
-    list.appendChild(row);
+    frag.appendChild(row);
   });
+  list.replaceChildren(frag);
 
   if (!state.selectedHistoryFile && state.historyFiles.length) {
     await loadHistoryFile(state.historyFiles[0].fileName);
@@ -722,21 +759,22 @@ function renderDashboardSummary(days = []) {
   el('dashboard-total-violations').textContent = String(totalViolations);
 
   const list = el('dashboard-days-list');
-  list.innerHTML = '';
   el('dashboard-days-empty').style.display = days.length ? 'none' : 'block';
+  const frag = document.createDocumentFragment();
   days.forEach((day) => {
     const row = document.createElement('div');
     row.className = `dashboard-day-item ${state.selectedDashboardDay === day.dateKey ? 'active' : ''}`;
     const btn = document.createElement('button');
-    btn.innerHTML = `<h4>${day.dateKey}</h4><p class="muted small">${day.totalMinutes} 分钟 · ${day.totalSessions} 次会话 · 违规 ${day.totalViolations} 次</p>`;
+    btn.innerHTML = `<h4>${escapeHTML(day.dateKey)}</h4><p class="muted small">${escapeHTML(day.totalMinutes)} 分钟 · ${escapeHTML(day.totalSessions)} 次会话 · 违规 ${escapeHTML(day.totalViolations)} 次</p>`;
     btn.addEventListener('click', () => {
       state.selectedDashboardDay = day.dateKey;
       renderDashboardSummary(state.dashboardDays);
       renderDashboardDetail(day);
     });
     row.appendChild(btn);
-    list.appendChild(row);
+    frag.appendChild(row);
   });
+  list.replaceChildren(frag);
 
   if (!days.some((day) => day.dateKey === state.selectedDashboardDay)) {
     state.selectedDashboardDay = null;
@@ -752,36 +790,37 @@ function renderDashboardDetail(day) {
   el('dashboard-detail-title').textContent = day?.dateKey || '未选择日期';
   const empty = el('dashboard-detail-empty');
   const body = el('dashboard-detail-body');
-  body.innerHTML = '';
 
   if (!day) {
     empty.classList.remove('hidden');
     body.classList.add('hidden');
+    body.innerHTML = '';
     return;
   }
 
   empty.classList.add('hidden');
   body.classList.remove('hidden');
 
+  const frag = document.createDocumentFragment();
   const summary = document.createElement('div');
   summary.className = 'rule-row';
-  summary.innerHTML = `<div class="rule-main"><h4>${day.dateKey}</h4><p class="muted small">总专注 ${day.totalMinutes} 分钟 · ${day.totalSessions} 次会话 · 违规 ${day.totalViolations} 次</p></div>`;
-  body.appendChild(summary);
+  summary.innerHTML = `<div class="rule-main"><h4>${escapeHTML(day.dateKey)}</h4><p class="muted small">总专注 ${escapeHTML(day.totalMinutes)} 分钟 · ${escapeHTML(day.totalSessions)} 次会话 · 违规 ${escapeHTML(day.totalViolations)} 次</p></div>`;
+  frag.appendChild(summary);
 
   if (!day.sessions?.length) {
     const noSessions = document.createElement('div');
     noSessions.className = 'empty';
     noSessions.textContent = '当天没有可展示的 session 明细。';
-    body.appendChild(noSessions);
-    return;
+    frag.appendChild(noSessions);
+  } else {
+    day.sessions.forEach((sessionTitle) => {
+      const row = document.createElement('div');
+      row.className = 'rule-row';
+      row.innerHTML = `<div class="rule-main"><p>${escapeHTML(sessionTitle)}</p></div>`;
+      frag.appendChild(row);
+    });
   }
-
-  day.sessions.forEach((sessionTitle) => {
-    const row = document.createElement('div');
-    row.className = 'rule-row';
-    row.innerHTML = `<div class="rule-main"><p>${sessionTitle}</p></div>`;
-    body.appendChild(row);
-  });
+  body.replaceChildren(frag);
 }
 
 async function refreshDashboard(showTip = false) {
@@ -903,8 +942,6 @@ async function stopSession() {
 
 async function backToRules() {
   const summary = state.session?.summary || {};
-  state.allowedWindows = clone(summary.allowedWindows || state.allowedWindows);
-  state.allowedCategories = clone(summary.allowedCategories || state.allowedCategories);
   state.sessionMode = summary.sessionMode || state.sessionMode || 'countdown';
   try {
     const idle = await api.resetSession();
@@ -1075,13 +1112,44 @@ function bindEvents() {
   if (!api) return;
   api.subscribeState(async (session) => {
     const previousStatus = state.session?.status;
-    renderSession(session);
+    
     if (previousStatus === 'running' && (session.status === 'completed' || session.status === 'cancelled')) {
+      const summary = session.summary || {};
+      const manuallyAddedWindows = summary.allowedWindows || [];
+      if (manuallyAddedWindows.length > 0) {
+        let tempCat = state.categoryRules.find(c => c.name.toLowerCase() === 'temp');
+        if (!tempCat) {
+          tempCat = { id: `category-temp-${Date.now()}`, name: 'temp', color: '#94a3b8', pattern: '', enabled: true, createdAt: new Date().toISOString() };
+          state.categoryRules.push(tempCat);
+        }
+        
+        let existingPatterns = tempCat.pattern ? tempCat.pattern.split('|').map(s => s.trim()) : [];
+        const newPatterns = manuallyAddedWindows.map(w => (w.processName || '').replace(/\.exe$/i, '') || w.initialTitle).filter(Boolean);
+        tempCat.pattern = Array.from(new Set([...existingPatterns, ...newPatterns])).filter(Boolean).join('|');
+        
+        state.categoryRules = state.categoryRules.map(c => c.id === tempCat.id ? tempCat : c);
+        
+        if (!state.allowedCategories.some(c => c.id === tempCat.id)) {
+          state.allowedCategories.push(clone(tempCat));
+        } else {
+          state.allowedCategories = state.allowedCategories.map(c => c.id === tempCat.id ? clone(tempCat) : c);
+        }
+        
+        state.allowedWindows = [];
+        persistCategoryRules();
+        persistLastRules();
+        renderCategoryRules();
+        renderAllowedLists();
+        showToast('专注结束，已将刚才添加的窗口保存至 temp 分类', 'normal');
+      }
+
       await refreshHistoryFiles();
       if (!el('dashboard-drawer-overlay').classList.contains('hidden')) {
         await refreshDashboard();
       }
     }
+
+    renderSession(session);
   });
   api.subscribeViolation((violation) => {
     showToast(`已拦截：${violation.title || violation.processName || '未知窗口'}`, 'danger');

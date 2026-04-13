@@ -95,7 +95,7 @@
             </div>
 
             <div id="focus-state-running" class="focus-state">
-              <h2 id="running-timer">25:00</h2>
+              <h2 id="running-timer" role="timer" aria-live="polite">25:00</h2>
               <p id="running-subtitle" class="muted">正在守住你这轮允许规则</p>
               <div class="metrics">
                 <div class="metric"><span class="metric-label">违规次数</span><strong id="metric-violations">0</strong></div>
@@ -187,7 +187,7 @@
       </main>
     </div>
 
-    <div id="toast" class="toast"></div>
+    <div id="toast" class="toast" aria-live="polite" role="status"></div>
 
     <div id="exit-challenge-overlay" class="challenge-overlay hidden">
       <div class="challenge-card">
