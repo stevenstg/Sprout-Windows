@@ -56,7 +56,7 @@
 从源码运行：
 ```bash
 git clone https://github.com/stevenstg/Sprout-Focus-Windows.git
-cd Sprout-Windows
+cd Sprout-Focus-Windows
 npm install
 npm start
 ```
@@ -66,6 +66,8 @@ Node.js 18+ 是唯一硬性依赖。详见 [Installation](docs/installation.md) 
 ## 其他
 
 **系统安全白名单**：内置规则自动放行资源管理器、任务栏、开始菜单、锁屏、UAC、截图工具等系统窗口，避免误拦截。
+
+**计时模式与提醒**：支持倒计时和正计时两种模式。倒计时自然结束后会触发 Windows 系统通知和提示音。
 
 **退出保护**：会话中点击结束会触发打字验证，防止冲动退出。难度可调整（固定短语 / 随机符号串 / 生僻汉字）。
 

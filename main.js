@@ -32,6 +32,8 @@ class SettingsStore {
       autoWriteHistory: true,
       systemSafelistEnabled: true,
       exitDifficulty: 'easy',
+      openAtLogin: false,
+      silentStart: false,
       systemSafelistRules: getDefaultSystemSafelistRules(),
     };
   }
@@ -43,6 +45,8 @@ class SettingsStore {
       : defaults.exitDifficulty;
     return {
       historyDir: String(input?.historyDir || '').trim() || defaults.historyDir,
+      openAtLogin: !!input?.openAtLogin,
+      silentStart: !!input?.silentStart,
       autoWriteHistory: input?.autoWriteHistory !== false,
       systemSafelistEnabled: input?.systemSafelistEnabled !== false,
       exitDifficulty,
@@ -71,6 +75,13 @@ class SettingsStore {
       await this.save(this.settings);
     }
 
+    if (app.isPackaged) {
+      app.setLoginItemSettings({
+        openAtLogin: this.settings.openAtLogin,
+        args: this.settings.silentStart ? ['--hidden'] : [],
+      });
+    }
+
     await fs.mkdir(this.settings.historyDir, { recursive: true });
     return this.settings;
   }
@@ -81,6 +92,14 @@ class SettingsStore {
       ...current,
       ...patch,
     });
+    
+    if (app.isPackaged) {
+      app.setLoginItemSettings({
+        openAtLogin: this.settings.openAtLogin,
+        args: this.settings.silentStart ? ['--hidden'] : [],
+      });
+    }
+    
     await fs.mkdir(path.dirname(this.file), { recursive: true });
     await fs.writeFile(this.file, JSON.stringify(this.settings, null, 2), 'utf8');
     await fs.mkdir(this.settings.historyDir, { recursive: true });
@@ -218,7 +237,7 @@ function broadcast(channel, payload) {
   refreshTrayMenu();
 }
 
-function createWindow() {
+function createWindow(startHidden = false) {
   mainWindow = new BrowserWindow({
     width: 1080,
     height: 760,
@@ -227,6 +246,7 @@ function createWindow() {
     title: 'Sprout',
     icon: path.join(__dirname, 'app', 'icon.ico'),
     backgroundColor: '#0f172a',
+    show: !startHidden,
     webPreferences: {
       preload: path.join(__dirname, 'app', 'preload.cjs'),
       contextIsolation: true,
@@ -321,7 +341,16 @@ function createTray() {
   refreshTrayMenu();
 }
 
-app.whenReady().then(async () => {
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (event, commandLine) => {
+    ensureWindowVisible();
+  });
+
+  app.whenReady().then(async () => {
   const userDataDir = app.getPath('userData');
   settingsStore = new SettingsStore(userDataDir);
   appSettings = await settingsStore.load();
@@ -423,7 +452,8 @@ app.whenReady().then(async () => {
     return { ok: true };
   });
 
-  createWindow();
+  const shouldStartHidden = app.isPackaged && !!appSettings.silentStart && process.argv.includes('--hidden');
+  createWindow(shouldStartHidden);
   createTray();
 
   guardian.start(guardianBootstrap, onGuardianPush).catch((error) => {
@@ -441,3 +471,4 @@ app.on('before-quit', () => {
   forceQuit = true;
   guardian.stop();
 });
+}

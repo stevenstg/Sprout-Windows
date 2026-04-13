@@ -14,6 +14,17 @@
 }
 
 * { box-sizing: border-box; }
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 body {
   margin: 0;
   font-family: 'Segoe UI', 'PingFang SC', sans-serif;
@@ -266,6 +277,12 @@ pre { margin: 0; font-family: 'Cascadia Code', Consolas, monospace; }
   padding: 10px 12px;
   border-radius: 16px;
   min-width: 0;
+  animation: fadeIn 0.2s ease-out forwards;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(30, 60, 20, 0.05);
 }
 .chip span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip button { background: transparent; color: #fda4af; font-size: 18px; line-height: 1; }
@@ -273,7 +290,10 @@ pre { margin: 0; font-family: 'Cascadia Code', Consolas, monospace; }
 .empty { padding: 18px; border: 1px dashed rgba(70,120,50,0.25); border-radius: 18px; color: var(--muted); }
 #running-timer { margin: 0; font-size: 64px; }
 .focus-state { display: none; gap: 14px; }
-.focus-state.active { display: grid; }
+.focus-state.active { 
+  display: grid; 
+  animation: fadeIn 0.3s ease-out forwards;
+}
 .metrics { display: flex; gap: 12px; flex-wrap: wrap; }
 .metric, .stat-card {
   background: rgba(255,255,255,0.72);
@@ -290,6 +310,8 @@ pre { margin: 0; font-family: 'Cascadia Code', Consolas, monospace; }
   border: 1px solid var(--line);
   border-radius: 18px;
   padding: 14px 16px;
+  animation: fadeIn 0.25s ease-out forwards;
+  transition: background 0.15s ease, transform 0.15s ease;
 }
 .timeline-item h4, .rule-row h4, .history-file h4 { margin: 0 0 6px; }
 .timeline-item p, .rule-row p, .history-file p { margin: 0; }
@@ -401,7 +423,7 @@ pre { margin: 0; font-family: 'Cascadia Code', Consolas, monospace; }
 }
 .challenge-timer-line { margin: 0; color: var(--muted); font-size: 14px; }
 .challenge-phrase {
-  font-size: 22px; font-weight: 800; letter-spacing: 0.06em;
+  font-size: 28px; font-weight: 800; letter-spacing: 0.15em; line-height: 1.4;
   padding: 16px 20px; border-radius: 14px;
   background: var(--panel-soft); border: 1px solid var(--line);
   text-align: center; user-select: none; color: var(--text);
@@ -496,3 +518,6 @@ pre { margin: 0; font-family: 'Cascadia Code', Consolas, monospace; }
   .challenge-card { padding: 24px 20px; }
 }
 
+
+.setting-desc { margin-left: 28px; line-height: 1.4; opacity: 0.6; }
+.setting-item { display: flex; flex-direction: column; gap: 4px; }

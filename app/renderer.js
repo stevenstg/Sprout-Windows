@@ -303,18 +303,23 @@ function renderCompactRuleSummary() {
   const parts = summarizeRules();
   const hasRules = !!(state.allowedWindows.length || state.allowedCategories.length);
   const summaryText = hasRules ? parts.join(' · ') : '尚未配置规则';
-  el('rule-summary-text').textContent = summaryText;
-  el('compact-rule-summary').textContent = summaryText;
 
   const chips = el('rule-summary-chips');
-  const frag = document.createDocumentFragment();
-  state.allowedWindows.forEach((w) => {
-    frag.appendChild(makeChip(w.label || w.processName || '未命名窗口'));
-  });
-  state.allowedCategories.forEach((c) => {
-    frag.appendChild(makeChip(c.name, { category: true, color: c.color }));
-  });
-  chips.replaceChildren(frag);
+  const currentHash = state.allowedWindows.length + '|' + state.allowedCategories.length;
+  if (chips.dataset.rulesHash !== currentHash) {
+    el('rule-summary-text').textContent = summaryText;
+    el('compact-rule-summary').textContent = summaryText;
+
+    const frag = document.createDocumentFragment();
+    state.allowedWindows.forEach((w) => {
+      frag.appendChild(makeChip(w.label || w.processName || '未命名窗口'));
+    });
+    state.allowedCategories.forEach((c) => {
+      frag.appendChild(makeChip(c.name, { category: true, color: c.color }));
+    });
+    chips.replaceChildren(frag);
+    chips.dataset.rulesHash = currentHash;
+  }
 
   const startBtn = el('start-session-btn');
   if (startBtn) startBtn.disabled = !hasRules;
@@ -451,6 +456,10 @@ function renderSystemSafelist(rules = []) {
 
 function renderViolations(violations = [], targetId, emptyId) {
   const list = el(targetId);
+  const currentHash = violations.length + '-' + (violations[violations.length - 1]?.timestamp || '');
+  if (list.dataset.vHash === currentHash) return;
+  list.dataset.vHash = currentHash;
+
   const empty = emptyId ? el(emptyId) : null;
   if (empty) empty.style.display = violations.length ? 'none' : 'block';
   if (!violations.length && !emptyId) {
@@ -476,20 +485,26 @@ function renderFocusState(session) {
   const running = el('focus-state-running');
   const result = el('focus-state-result');
   const resultSummaryGrid = el('result-summary-grid');
-  [idle, running, result].forEach((node) => node.classList.remove('active'));
-  resultSummaryGrid.classList.add('hidden');
+  
+  const status = (!session || session.status === 'idle') ? 'idle' : session.status;
+  if (idle.classList.contains('active') && status !== 'idle') idle.classList.remove('active');
+  if (running.classList.contains('active') && status !== 'running') running.classList.remove('active');
+  if (result.classList.contains('active') && (status === 'idle' || status === 'running')) {
+    result.classList.remove('active');
+    resultSummaryGrid.classList.add('hidden');
+  }
 
-  if (!session || session.status === 'idle') {
+  if (status === 'idle') {
     hideExitChallenge();
     el('latest-violation-title').textContent = '暂无';
     el('latest-violation-reason').textContent = '还没有拦截记录。';
-    idle.classList.add('active');
+    if (!idle.classList.contains('active')) idle.classList.add('active');
     updateHeroIdleTimer();
     return;
   }
 
-  if (session.status === 'running') {
-    running.classList.add('active');
+  if (status === 'running') {
+    if (!running.classList.contains('active')) running.classList.add('active');
     el('running-timer').textContent = session.sessionMode === 'countup'
       ? formatClock(session.elapsedMs)
       : formatTime(session.remainingMs);
@@ -504,8 +519,11 @@ function renderFocusState(session) {
   }
 
   hideExitChallenge();
-  result.classList.add('active');
-  resultSummaryGrid.classList.remove('hidden');
+  if (!result.classList.contains('active')) {
+    result.classList.add('active');
+    resultSummaryGrid.classList.remove('hidden');
+  }
+  
   const summary = session.summary || {};
   const reasonMap = { completed: '倒计时结束', cancelled: '手动结束' };
   const actualDurationMinutes = Number(summary.actualDurationMinutes ?? summary.durationMinutes ?? 0);
@@ -526,6 +544,10 @@ function renderFocusState(session) {
 function renderSummaryLists(summary) {
   const windows = el('result-windows');
   const categories = el('result-categories');
+
+  const currentHash = (summary.allowedWindows?.length || 0) + '|' + (summary.allowedCategories?.length || 0);
+  if (windows.dataset.sHash === currentHash) return;
+  windows.dataset.sHash = currentHash;
   
   if (!(summary.allowedWindows || []).length) {
     windows.innerHTML = '<div class="empty">没有窗口规则</div>';
@@ -651,6 +673,8 @@ async function loadSettings() {
   el('history-dir-input').value = state.settings.historyDir || '';
   el('auto-write-history-input').checked = state.settings.autoWriteHistory !== false;
   el('system-safelist-enabled-input').checked = state.settings.systemSafelistEnabled !== false;
+  el('open-at-login-input').checked = !!state.settings.openAtLogin;
+  el('silent-start-input').checked = !!state.settings.silentStart;
   el('exit-difficulty-input').value = state.settings.exitDifficulty || 'easy';
   state.exitDifficulty = state.settings.exitDifficulty || 'easy';
   renderSystemSafelist(state.settings.systemSafelistRules || []);
@@ -662,6 +686,8 @@ async function saveSettings() {
     historyDir: el('history-dir-input').value.trim() || state.settings?.historyDir || '',
     autoWriteHistory: el('auto-write-history-input').checked,
     systemSafelistEnabled: el('system-safelist-enabled-input').checked,
+    openAtLogin: el('open-at-login-input').checked,
+    silentStart: el('silent-start-input').checked,
     exitDifficulty: el('exit-difficulty-input').value,
   };
   state.settings = await api.saveSettings(patch);
@@ -1157,9 +1183,6 @@ function bindEvents() {
 }
 
 bindEvents();
-renderFocusView();
-renderAllowedLists();
-renderCategoryRules();
 refreshInitialState();
 setInterval(() => {
   if (state.session?.status !== 'running') {

@@ -371,14 +371,32 @@
                 <span>历史记录目录</span>
                 <input id="history-dir-input" type="text" placeholder="历史记录目录" />
               </label>
-              <label class="setting-switch">
-                <input id="auto-write-history-input" type="checkbox" />
-                <span>自动写 Markdown 历史记录</span>
-              </label>
-              <label class="setting-switch">
-                <input id="system-safelist-enabled-input" type="checkbox" />
-                <span>启用系统安全白名单</span>
-              </label>
+              <div class="setting-item">
+                <label class="setting-switch">
+                  <input id="auto-write-history-input" type="checkbox" />
+                  <span>自动写 Markdown 历史记录</span>
+                </label>
+              </div>
+              <div class="setting-item">
+                <label class="setting-switch">
+                  <input id="open-at-login-input" type="checkbox" />
+                  <span>应用开机自启</span>
+                </label>
+                <div class="muted small setting-desc">随系统启动自动运行</div>
+              </div>
+              <div class="setting-item">
+                <label class="setting-switch">
+                  <input id="silent-start-input" type="checkbox" />
+                  <span>静默启动（仅托盘）</span>
+                </label>
+                <div class="muted small setting-desc">程序开机自启时不显示主窗口，仅在系统托盘运行</div>
+              </div>
+              <div class="setting-item">
+                <label class="setting-switch">
+                  <input id="system-safelist-enabled-input" type="checkbox" />
+                  <span>启用系统安全白名单</span>
+                </label>
+              </div>
               <label class="setting-row">
                 <span>退出验证难度</span>
                 <select id="exit-difficulty-input">

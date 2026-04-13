@@ -17,8 +17,8 @@
 
 ### 安装与启动
 ```bash
-git clone https://github.com/stevenstg/Sprout-Windows.git
-cd Sprout-Windows
+git clone https://github.com/stevenstg/Sprout-Focus-Windows.git
+cd Sprout-Focus-Windows
 npm install
 npm start
 ```
