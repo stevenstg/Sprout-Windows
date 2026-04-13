@@ -302,6 +302,29 @@ pre { margin: 0; font-family: 'Cascadia Code', Consolas, monospace; }
 .history-header { align-items: center; }
 .history-toolbar { gap: 8px; align-items: center; justify-content: flex-end; }
 .history-layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 18px; }
+.dashboard-layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 18px; }
+.dashboard-summary-panel { grid-column: 1 / -1; }
+.dashboard-days-panel { display: grid; align-content: start; gap: 10px; }
+.dashboard-detail-panel { min-width: 0; display: grid; align-content: start; gap: 12px; }
+.dashboard-day-item {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.7);
+  border: 1px solid var(--line);
+}
+.dashboard-day-item.active { border-color: rgba(52, 211, 153, 0.45); }
+.dashboard-day-item button {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  color: inherit;
+}
+.dashboard-detail-body .rule-row {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
 .history-files-panel { display: grid; align-content: start; gap: 10px; }
 .history-preview-panel { min-width: 0; }
 .history-file-list { gap: 10px; }
@@ -398,7 +421,7 @@ pre { margin: 0; font-family: 'Cascadia Code', Consolas, monospace; }
 #challenge-countdown { font-weight: 700; color: var(--accent-2); }
 
 @media (max-width: 1380px) {
-  .grid.two, .history-layout, .settings-layout, .category-layout, .category-form { grid-template-columns: 1fr; }
+  .grid.two, .history-layout, .dashboard-layout, .settings-layout, .category-layout, .category-form { grid-template-columns: 1fr; }
   .result-grid, .grid.three, .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .panel-head, .footer-panel { flex-wrap: wrap; }
   .drawer, .drawer-wide, .drawer-medium { width: 100vw; }

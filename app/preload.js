@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('forestApi', {
   readHistoryFile: (fileName) => ipcRenderer.invoke(IPC_CHANNELS.invoke.readHistoryFile, fileName),
   openHistoryFile: (fileName) => ipcRenderer.invoke(IPC_CHANNELS.invoke.openHistoryFile, fileName),
   openHistoryDirectory: () => ipcRenderer.invoke(IPC_CHANNELS.invoke.openHistoryDirectory),
+  getDashboardSummary: () => ipcRenderer.invoke(IPC_CHANNELS.invoke.getDashboardSummary),
   resetSession: () => ipcRenderer.invoke(IPC_CHANNELS.invoke.resetSession),
   captureCurrentWindow: () => ipcRenderer.invoke(IPC_CHANNELS.invoke.captureCurrentWindow),
   getCurrentContext: () => ipcRenderer.invoke(IPC_CHANNELS.invoke.getCurrentContext),

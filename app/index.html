@@ -30,6 +30,7 @@
         </section>
 
         <div class="sidebar-actions">
+          <button id="open-dashboard-btn" class="sidebar-action-btn">看板</button>
           <button id="open-history-btn" class="sidebar-action-btn">历史</button>
           <button id="open-settings-btn" class="sidebar-action-btn">设置</button>
         </div>
@@ -43,6 +44,7 @@
               <h1>生长空间</h1>
             </div>
             <div class="compact-header-actions">
+              <button id="compact-open-dashboard-btn" class="compact-action-btn" aria-label="打开看板">📊</button>
               <button id="compact-open-history-btn" class="compact-action-btn" aria-label="打开历史">📋</button>
               <button id="compact-open-settings-btn" class="compact-action-btn" aria-label="打开设置">⚙</button>
             </div>
@@ -302,6 +304,48 @@
               </div>
             </div>
             <pre id="history-preview" class="json-box">请选择左侧文件查看内容。</pre>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <div id="dashboard-drawer-overlay" class="drawer-overlay hidden">
+      <div class="drawer drawer-wide">
+        <div class="drawer-header history-header">
+          <div>
+            <h3>数据看板</h3>
+            <p class="muted small">最近 7 天的专注汇总和按天明细。</p>
+          </div>
+          <div class="footer-actions history-toolbar">
+            <button id="refresh-dashboard-btn" class="btn small ghost">刷新看板</button>
+            <button id="close-dashboard-drawer" class="btn small ghost">关闭</button>
+          </div>
+        </div>
+
+        <div class="dashboard-layout">
+          <section class="panel dashboard-summary-panel">
+            <div class="grid three stats-grid">
+              <div class="stat-card"><span class="metric-label">近 7 天专注</span><strong id="dashboard-total-hours">—</strong></div>
+              <div class="stat-card"><span class="metric-label">近 7 天会话</span><strong id="dashboard-total-sessions">—</strong></div>
+              <div class="stat-card"><span class="metric-label">近 7 天违规</span><strong id="dashboard-total-violations">—</strong></div>
+            </div>
+          </section>
+
+          <section class="panel dashboard-days-panel">
+            <p class="eyebrow">最近 7 天</p>
+            <div id="dashboard-days-empty" class="empty">还没有历史数据。</div>
+            <div id="dashboard-days-list" class="history-file-list"></div>
+          </section>
+
+          <section class="panel dashboard-detail-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">当天详情</p>
+                <h3 id="dashboard-detail-title">未选择日期</h3>
+              </div>
+            </div>
+            <div id="dashboard-detail-empty" class="empty">先选择左侧某一天。</div>
+            <div id="dashboard-detail-body" class="rule-list hidden"></div>
           </section>
         </div>
       </div>

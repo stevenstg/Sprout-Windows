@@ -15,6 +15,8 @@ const state = {
   historyFiles: [],
   selectedHistoryFile: null,
   historyContent: '',
+  dashboardDays: [],
+  selectedDashboardDay: null,
   lastCategoryRuleAnchorId: null,
 };
 
@@ -175,7 +177,7 @@ function scrollCategoryRuleIntoView(id) {
 }
 
 function syncDrawerScrollLock() {
-  const anyOpen = ['rules', 'history', 'settings']
+  const anyOpen = ['rules', 'history', 'settings', 'dashboard']
     .some((name) => !el(`${name}-drawer-overlay`)?.classList.contains('hidden'));
   document.body.classList.toggle('drawer-open', anyOpen);
 }
@@ -680,6 +682,127 @@ async function loadHistoryFile(fileName) {
   });
 }
 
+function parseChineseDurationToMinutes(text = '') {
+  const value = String(text).trim();
+  if (!value) return 0;
+  const hours = Number((value.match(/(\d+)\s*小时/) || [])[1] || 0);
+  const minutes = Number((value.match(/(\d+)\s*分钟/) || [])[1] || 0);
+  if (hours || minutes) {
+    return hours * 60 + minutes;
+  }
+  return Number((value.match(/(\d+)/) || [])[1] || 0);
+}
+
+function parseDashboardDayFromMarkdown(fileName, content) {
+  const dateKey = String(fileName || '').replace(/\.md$/i, '');
+  const totalDurationText = (content.match(/当日总专注时长：([^\r\n]+)/) || [])[1] || '';
+  const totalSessions = Number((content.match(/当日总会话数：(\d+)/) || [])[1] || 0);
+  const totalViolations = Number((content.match(/当日总违规次数：(\d+)/) || [])[1] || 0);
+  const sessions = content
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith('## ') && !line.startsWith('## 当日摘要'))
+    .map((line) => line.replace(/^##\s+/, '').trim());
+
+  return {
+    dateKey,
+    totalMinutes: parseChineseDurationToMinutes(totalDurationText),
+    totalSessions,
+    totalViolations,
+    sessions,
+  };
+}
+
+function renderDashboardSummary(days = []) {
+  state.dashboardDays = days;
+  const totalMinutes = days.reduce((sum, day) => sum + Number(day.totalMinutes || 0), 0);
+  const totalSessions = days.reduce((sum, day) => sum + Number(day.totalSessions || 0), 0);
+  const totalViolations = days.reduce((sum, day) => sum + Number(day.totalViolations || 0), 0);
+  el('dashboard-total-hours').textContent = `${(totalMinutes / 60).toFixed(1)} h`;
+  el('dashboard-total-sessions').textContent = String(totalSessions);
+  el('dashboard-total-violations').textContent = String(totalViolations);
+
+  const list = el('dashboard-days-list');
+  list.innerHTML = '';
+  el('dashboard-days-empty').style.display = days.length ? 'none' : 'block';
+  days.forEach((day) => {
+    const row = document.createElement('div');
+    row.className = `dashboard-day-item ${state.selectedDashboardDay === day.dateKey ? 'active' : ''}`;
+    const btn = document.createElement('button');
+    btn.innerHTML = `<h4>${day.dateKey}</h4><p class="muted small">${day.totalMinutes} 分钟 · ${day.totalSessions} 次会话 · 违规 ${day.totalViolations} 次</p>`;
+    btn.addEventListener('click', () => {
+      state.selectedDashboardDay = day.dateKey;
+      renderDashboardSummary(state.dashboardDays);
+      renderDashboardDetail(day);
+    });
+    row.appendChild(btn);
+    list.appendChild(row);
+  });
+
+  if (!days.some((day) => day.dateKey === state.selectedDashboardDay)) {
+    state.selectedDashboardDay = null;
+  }
+  if (!state.selectedDashboardDay && days.length) {
+    state.selectedDashboardDay = days[0].dateKey;
+  }
+  const selected = days.find((day) => day.dateKey === state.selectedDashboardDay) || days[0] || null;
+  renderDashboardDetail(selected);
+}
+
+function renderDashboardDetail(day) {
+  el('dashboard-detail-title').textContent = day?.dateKey || '未选择日期';
+  const empty = el('dashboard-detail-empty');
+  const body = el('dashboard-detail-body');
+  body.innerHTML = '';
+
+  if (!day) {
+    empty.classList.remove('hidden');
+    body.classList.add('hidden');
+    return;
+  }
+
+  empty.classList.add('hidden');
+  body.classList.remove('hidden');
+
+  const summary = document.createElement('div');
+  summary.className = 'rule-row';
+  summary.innerHTML = `<div class="rule-main"><h4>${day.dateKey}</h4><p class="muted small">总专注 ${day.totalMinutes} 分钟 · ${day.totalSessions} 次会话 · 违规 ${day.totalViolations} 次</p></div>`;
+  body.appendChild(summary);
+
+  if (!day.sessions?.length) {
+    const noSessions = document.createElement('div');
+    noSessions.className = 'empty';
+    noSessions.textContent = '当天没有可展示的 session 明细。';
+    body.appendChild(noSessions);
+    return;
+  }
+
+  day.sessions.forEach((sessionTitle) => {
+    const row = document.createElement('div');
+    row.className = 'rule-row';
+    row.innerHTML = `<div class="rule-main"><p>${sessionTitle}</p></div>`;
+    body.appendChild(row);
+  });
+}
+
+async function refreshDashboard(showTip = false) {
+  if (!api) return;
+  try {
+    state.dashboardDays = [];
+    state.selectedDashboardDay = null;
+    const files = await api.listHistoryFiles();
+    const recentFiles = files.slice(0, 7);
+    const payloads = await Promise.all(recentFiles.map((file) => api.readHistoryFile(file.fileName)));
+    const days = payloads.map((payload) => parseDashboardDayFromMarkdown(payload.fileName, payload.content));
+    renderDashboardSummary(days);
+    if (showTip) {
+      showToast(days.length ? '看板已刷新' : '看板暂无历史数据');
+    }
+  } catch (error) {
+    console.error(error);
+    showToast('刷新看板失败', 'danger');
+  }
+}
+
 async function refreshCurrentContext(showTip = false) {
   if (!api) return;
   try {
@@ -877,6 +1000,14 @@ async function confirmExitChallenge() {
 function bindEvents() {
   el('edit-rules-btn').addEventListener('click', () => openDrawer('rules'));
   el('close-rules-drawer').addEventListener('click', () => closeDrawer('rules'));
+  el('open-dashboard-btn').addEventListener('click', () => {
+    openDrawer('dashboard');
+    refreshDashboard(false);
+  });
+  el('compact-open-dashboard-btn').addEventListener('click', () => {
+    openDrawer('dashboard');
+    refreshDashboard(false);
+  });
   el('open-history-btn').addEventListener('click', () => {
     openDrawer('history');
     refreshHistoryFiles();
@@ -889,8 +1020,9 @@ function bindEvents() {
   el('open-settings-btn').addEventListener('click', () => openDrawer('settings'));
   el('compact-open-settings-btn').addEventListener('click', () => openDrawer('settings'));
   el('close-settings-drawer').addEventListener('click', () => closeDrawer('settings'));
+  el('close-dashboard-drawer').addEventListener('click', () => closeDrawer('dashboard'));
 
-  ['rules', 'history', 'settings'].forEach((name) => {
+  ['rules', 'history', 'settings', 'dashboard'].forEach((name) => {
     el(`${name}-drawer-overlay`).addEventListener('click', (event) => {
       if (event.target === el(`${name}-drawer-overlay`)) closeDrawer(name);
     });
@@ -898,7 +1030,7 @@ function bindEvents() {
 
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
-      ['rules', 'history', 'settings'].forEach((name) => {
+      ['rules', 'history', 'settings', 'dashboard'].forEach((name) => {
         if (!el(`${name}-drawer-overlay`).classList.contains('hidden')) closeDrawer(name);
       });
     }
@@ -926,6 +1058,7 @@ function bindEvents() {
   el('refresh-context-btn').addEventListener('click', () => refreshCurrentContext(true));
 
   el('refresh-history-btn').addEventListener('click', refreshHistoryFiles);
+  el('refresh-dashboard-btn').addEventListener('click', () => refreshDashboard(true));
   el('open-history-dir-btn').addEventListener('click', async () => {
     await api.openHistoryDirectory();
   });
@@ -945,6 +1078,9 @@ function bindEvents() {
     renderSession(session);
     if (previousStatus === 'running' && (session.status === 'completed' || session.status === 'cancelled')) {
       await refreshHistoryFiles();
+      if (!el('dashboard-drawer-overlay').classList.contains('hidden')) {
+        await refreshDashboard();
+      }
     }
   });
   api.subscribeViolation((violation) => {

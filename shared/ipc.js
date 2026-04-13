@@ -7,6 +7,7 @@ export const IPC_CHANNELS = {
     readHistoryFile: 'forest:read-history-file',
     openHistoryFile: 'forest:open-history-file',
     openHistoryDirectory: 'forest:open-history-directory',
+    getDashboardSummary: 'forest:get-dashboard-summary',
     resetSession: 'forest:reset-session',
     captureCurrentWindow: 'forest:capture-current-window',
     getCurrentContext: 'forest:get-current-context',

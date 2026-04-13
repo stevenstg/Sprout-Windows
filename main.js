@@ -88,6 +88,40 @@ class SettingsStore {
   }
 }
 
+function parseDashboardSummaryFromMd(fileName, content) {
+  const dateKey = fileName.replace(/\.md$/i, '');
+  const totalDurationText = (content.match(/当日总专注时长：([^\r\n]+)/) || [])[1] || '';
+  const totalSessions = Number((content.match(/当日总会话数：(\d+)/) || [])[1] || 0);
+  const totalViolations = Number((content.match(/当日总违规次数：(\d+)/) || [])[1] || 0);
+  const sessions = content
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith('## ') && !line.startsWith('## 当日摘要'))
+    .map((line) => line.replace(/^##\s+/, '').trim());
+
+  return {
+    dateKey,
+    totalMinutes: parseChineseDurationToMinutes(totalDurationText),
+    totalSessions,
+    totalViolations,
+    sessions,
+  };
+}
+
+function parseChineseDurationToMinutes(input = '') {
+  const text = String(input).trim();
+  if (!text) {
+    return 0;
+  }
+
+  const hours = Number((text.match(/(\d+)\s*小时/) || [])[1] || 0);
+  const minutes = Number((text.match(/(\d+)\s*分钟/) || [])[1] || 0);
+  if (hours || minutes) {
+    return hours * 60 + minutes;
+  }
+
+  return Number((text.match(/(\d+)/) || [])[1] || 0);
+}
+
 class GuardianBridge {
   constructor() {
     this.runtime = null;
@@ -360,6 +394,24 @@ app.whenReady().then(async () => {
     const settings = await settingsStore.load();
     await fs.mkdir(settings.historyDir, { recursive: true });
     return shell.openPath(settings.historyDir);
+  });
+  ipcMain.handle(IPC_CHANNELS.invoke.getDashboardSummary, async () => {
+    const settings = await settingsStore.load();
+    await fs.mkdir(settings.historyDir, { recursive: true });
+    const entries = await fs.readdir(settings.historyDir, { withFileTypes: true });
+    const files = entries
+      .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.md'))
+      .map((entry) => entry.name)
+      .sort((a, b) => b.localeCompare(a))
+      .slice(0, 7);
+
+    const days = await Promise.all(files.map(async (fileName) => {
+      const fullPath = path.join(settings.historyDir, fileName);
+      const content = await fs.readFile(fullPath, 'utf8');
+      return parseDashboardSummaryFromMd(fileName, content);
+    }));
+
+    return days;
   });
   ipcMain.handle(IPC_CHANNELS.invoke.resetSession, async () => guardian.request(GUARDIAN_REQUESTS.resetSession));
   ipcMain.handle(IPC_CHANNELS.invoke.captureCurrentWindow, async () => guardian.request(GUARDIAN_REQUESTS.captureCurrentWindow));
